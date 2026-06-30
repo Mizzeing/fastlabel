@@ -45,7 +45,9 @@ class YOLOExporter:
         if not annotations:
             return
 
-        label_path = labels_dir / f"{Path(img['filename']).stem}.txt"
+        # 用实际文件的 stem（含前缀）保证标签文件名唯一
+        img_path = Path(img['path'])
+        label_path = labels_dir / f"{img_path.stem}.txt"
         with open(label_path, 'w') as f:
             for ann in annotations:
                 # 数据库存储的是左上角坐标

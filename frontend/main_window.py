@@ -6,7 +6,7 @@
 from PyQt5.QtWidgets import (
     QMainWindow, QFileDialog, QMessageBox, QApplication,
     QAction, QMenu, QToolBar, QStatusBar, QLabel,
-    QDockWidget,
+    QDockWidget, QSplitter, QWidget, QVBoxLayout,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from PyQt5.QtGui import QKeySequence, QFont, QIcon, QPixmap
@@ -47,6 +47,10 @@ class MainWindow(QMainWindow):
 
         # 当前图片
         self._current_image_id: Optional[int] = None
+
+        # 记忆上次导入目录
+        self._last_import_dir = ""
+        self._last_yolo_dir = ""
 
         self._setup_ui()
         self._setup_shortcuts()
@@ -119,16 +123,28 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._image_view)
 
         # ── Dock Widgets ──
-        # 左侧：项目管理 + 模型管理（Tab 切换）
-        self._project_dock = ProjectDock()
-        self._project_dock.setMinimumWidth(220)
-        self._project_dock.setMaximumWidth(400)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self._project_dock)
+        # 左侧：统一管理面板（项目管理 + 模型管理 上下布局）
+        self._left_dock = QDockWidget("管理", self)
+        self._left_dock.setMinimumWidth(220)
+        self._left_dock.setMaximumWidth(400)
 
+        self._project_dock = ProjectDock()
         self._model_dock = ModelDock()
-        self.addDockWidget(Qt.LeftDockWidgetArea, self._model_dock)
-        self.tabifyDockWidget(self._project_dock, self._model_dock)
-        self._project_dock.raise_()
+
+        left_container = QWidget()
+        left_layout = QVBoxLayout(left_container)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+
+        splitter = QSplitter(Qt.Vertical)
+        splitter.addWidget(self._project_dock)
+        splitter.addWidget(self._model_dock)
+        splitter.setStretchFactor(0, 3)  # 项目占更多空间
+        splitter.setStretchFactor(1, 2)
+        left_layout.addWidget(splitter)
+
+        self._left_dock.setWidget(left_container)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._left_dock)
 
         # 右侧：标注列表 + 属性面板（Tab 切换）
         self._label_dock = LabelDock()
@@ -177,6 +193,10 @@ class MainWindow(QMainWindow):
         import_action.setShortcut(QKeySequence("Ctrl+I"))
         import_action.triggered.connect(self._on_import_images)
         file_menu.addAction(import_action)
+
+        import_label_action = QAction("导入 YOLO 标签(&L)...", self)
+        import_label_action.triggered.connect(self._on_import_yolo_labels)
+        file_menu.addAction(import_label_action)
 
         file_menu.addSeparator()
 
@@ -229,14 +249,12 @@ class MainWindow(QMainWindow):
 
         annotate_menu.addSeparator()
 
-        select_mode_action = QAction("选择模式", self)
-        select_mode_action.setShortcut(QKeySequence("S"))
+        select_mode_action = QAction("选择模式 (S)", self)
         select_mode_action.triggered.connect(
             lambda: self._image_view.set_mode(Mode.SELECT))
         annotate_menu.addAction(select_mode_action)
 
-        draw_mode_action = QAction("绘制模式", self)
-        draw_mode_action.setShortcut(QKeySequence("W"))
+        draw_mode_action = QAction("绘制模式 (W)", self)
         draw_mode_action.triggered.connect(
             lambda: self._image_view.set_mode(Mode.DRAW))
         annotate_menu.addAction(draw_mode_action)
@@ -292,6 +310,7 @@ class MainWindow(QMainWindow):
         self._project_dock.image_selected.connect(self._on_image_selected)
         self._project_dock.project_opened.connect(self._on_project_opened)
         self._project_dock.import_images_requested.connect(self._on_import_images)
+        self._project_dock.image_delete_requested.connect(self._on_delete_image)
 
         # ImageView / Canvas
         canvas = self._image_view.canvas
@@ -328,6 +347,7 @@ class MainWindow(QMainWindow):
         self._model_dock.accept_all_requested.connect(self._on_accept_all)
         self._model_dock.reject_all_requested.connect(self._on_reject_all)
         self._model_dock.conf_threshold_changed.connect(self._on_conf_threshold)
+        self._model_dock.class_mapping_requested.connect(self._on_class_mapping)
 
         # AnnotationManager
         self._annotation_manager.set_on_change(self._on_annotations_updated)
@@ -398,13 +418,17 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "提示", "请先打开一个项目")
             return
 
+        start_dir = self._last_import_dir or str(Path.home())
         files, _ = QFileDialog.getOpenFileNames(
             self, "选择图片",
-            str(Path.home()),
+            start_dir,
             "图片文件 (*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp);;所有文件 (*)")
 
         if not files:
             return
+
+        # 记住本次导入目录
+        self._last_import_dir = str(Path(files[0]).parent)
 
         count = self._dataset_manager.import_images(files)
         if count > 0:
@@ -417,6 +441,74 @@ class MainWindow(QMainWindow):
                 self._project_dock.select_image(0)
         else:
             self._status("没有新图片被导入（可能已存在）")
+
+    def _on_delete_image(self, image_id: int):
+        """删除图片"""
+        if not self._project:
+            return
+
+        img = self._project.get_image(image_id)
+        if not img:
+            return
+
+        reply = QMessageBox.question(
+            self, "确认删除",
+            f"确定要删除图片「{img['filename']}」吗？\n"
+            f"该图片的标注也会一并删除。",
+            QMessageBox.Yes | QMessageBox.No)
+
+        if reply != QMessageBox.Yes:
+            return
+
+        self._project.remove_image(image_id)
+
+        # 删除项目目录中的图片文件
+        img_path = Path(img['path'])
+        if img_path.exists():
+            img_path.unlink()
+
+        # 如果当前显示的正是这张图，跳到下一张或清空
+        if self._current_image_id == image_id:
+            self._annotation_manager.clear()
+            self._current_image_id = None
+            images = self._project.get_all_images()
+            if images:
+                self._load_image(images[0]['id'])
+                self._project_dock.select_image(0)
+            else:
+                self._image_view.canvas.load_image(None)
+                self._image_view.set_image_nav(0, 0)
+
+        # 刷新显示
+        self._project_dock.set_project(self._project)
+        self._status(f"已删除: {img['filename']}")
+
+    def _on_import_yolo_labels(self):
+        """导入 YOLO 标签文件到当前项目"""
+        if not self._project:
+            QMessageBox.warning(self, "提示", "请先打开一个项目")
+            return
+
+        start_dir = self._last_yolo_dir or str(Path.home())
+        label_dir = QFileDialog.getExistingDirectory(
+            self, "选择 YOLO 标签目录（包含 .txt 文件）",
+            start_dir,
+        )
+        if not label_dir:
+            return
+
+        self._last_yolo_dir = label_dir
+
+        # 确认
+        count = self._dataset_manager.import_yolo_labels(label_dir)
+        if count > 0:
+            # 刷新当前显示
+            self._project_dock.set_project(self._project)
+            if self._current_image_id:
+                self._load_image(self._current_image_id)
+            self._status(f"已从 YOLO 标签导入 {count} 张图片的标注")
+        else:
+            self._status("没有导入标注（可能已有标注或找不到匹配的图片）")
 
     # ══════════════════════════════════════
     # 图片导航
@@ -673,12 +765,21 @@ class MainWindow(QMainWindow):
             self._model_dock.set_model_status(True, info['name'])
             self._model_dock.set_model_path(model_path)
 
-            # 保存模型路径到项目配置
+            # 传递模型类别名称到面板
+            predictor = self._inference_manager.predictor
+            if hasattr(predictor, 'class_names'):
+                self._model_dock.set_model_class_names(predictor.class_names)
+
+            # 检查是否有已保存的类别映射
             if self._project:
                 self._project.config.set('model', {
                     'path': model_path,
                     'conf_threshold': self._inference_manager.conf_threshold,
                 })
+                model_class_map = self._project.config.get('model_class_map', {})
+                if model_class_map:
+                    self._model_dock.set_mapping_status(
+                        True, f"{len(model_class_map)} 个映射")
 
             self._status(f"模型已加载: {info['name']}")
         except ImportError as e:
@@ -701,39 +802,74 @@ class MainWindow(QMainWindow):
         """置信度阈值变化"""
         self._inference_manager.conf_threshold = threshold
 
-    def _ensure_prediction_classes(self, predictions):
-        """确保预测类别在项目数据库中存在，修正 class_id 映射
+    def _on_class_mapping(self):
+        """配置模型类别映射"""
+        if not self._project or not self._inference_manager.is_loaded:
+            QMessageBox.warning(self, "提示", "请先加载模型")
+            return
 
-        因为 YOLO 的 class_id（如 person=0, car=2）和项目数据库的 ID 可能不一致，
-        这里按名称匹配，把预测的 class_id 修正为项目中的实际 ID。
+        predictor = self._inference_manager.predictor
+        if not hasattr(predictor, 'class_names') or not predictor.class_names:
+            QMessageBox.warning(self, "提示", "当前模型没有类别信息")
+            return
+
+        from .widgets.class_mapping_dialog import ClassMappingDialog
+        model_names = predictor.class_names
+        project_classes = self._project.get_classes()
+
+        # 读取当前映射
+        current_mapping = self._project.config.get('model_class_map', {})
+
+        mapping = ClassMappingDialog.get_mapping_interactive(
+            model_names, project_classes, current_mapping, self)
+
+        if mapping is not None:
+            # 保存到项目配置
+            self._project.config.set('model_class_map', mapping)
+            self._model_dock.set_mapping_status(
+                True, f"{len(mapping)}/{len(model_names)} 个映射")
+            self._status(f"类别映射已保存: {len(mapping)} 个映射")
+
+    def _ensure_prediction_classes(self, predictions):
+        """确保预测类别映射正确
+
+        优先级:
+        1. 使用 model_class_map 显式映射（模型index → 项目类别名）
+        2. 按名称自动匹配
         """
         if not self._project or not predictions:
             return
-        # 按名称索引已有类别
-        classes = self._project.get_classes()
-        name_to_id = {c['name']: c['id'] for c in classes}
-        id_to_name = {c['id']: c['name'] for c in classes}
 
-        # 收集需要添加的类别（按名称去重）
-        to_add = {}
-        for p in predictions:
-            if p.label not in name_to_id and p.label not in to_add:
-                to_add[p.label] = p.class_id
-
-        # 添加缺失类别
-        for label, cid in to_add.items():
-            self._project.add_class(label, '#00BFFF')
-
-        # 重新获取类别映射
         classes = self._project.get_classes()
         name_to_id = {c['name']: c['id'] for c in classes}
 
-        # 修正每个预测的 class_id 为项目实际的 ID
-        for p in predictions:
-            actual_id = name_to_id.get(p.label)
-            if actual_id is not None:
-                p.class_id = actual_id
+        # 读取显式映射
+        model_class_map = self._project.config.get('model_class_map', {}) or {}
 
+        # 过滤和修正预测
+        valid_predictions = []
+        for p in predictions:
+            mapped_name = model_class_map.get(str(p.class_id), model_class_map.get(p.class_id))
+
+            if mapped_name:
+                # 有显式映射 → 用映射的类别名
+                actual_id = name_to_id.get(mapped_name)
+                if actual_id is not None:
+                    p.class_id = actual_id
+                    p.label = mapped_name
+                    valid_predictions.append(p)
+                # 如果映射的类别名在项目中不存在，跳过
+            else:
+                # 无显式映射 → 按名称匹配（向后兼容）
+                actual_id = name_to_id.get(p.label)
+                if actual_id is not None:
+                    p.class_id = actual_id
+                    valid_predictions.append(p)
+                # 没有匹配的跳过
+
+        # 替换原列表
+        predictions.clear()
+        predictions.extend(valid_predictions)
         self._sync_classes()
 
     def _on_auto_label(self):
@@ -803,25 +939,10 @@ class MainWindow(QMainWindow):
         if reply != QMessageBox.Yes:
             return
 
-        # 先收集所有预测类别，一次性注册到项目
-        all_classes = set()
-        for img in unannotated[:20]:  # 取样前20张收集类别
-            img_array, _, _ = self._dataset_manager.image_loader().load_image(img['path'])
-            try:
-                results = self._inference_manager.predict_and_filter(img_array)
-                for r in results:
-                    all_classes.add((r.class_id, r.label))
-            except Exception:
-                continue
-
-        # 注册所有缺失类别
-        existing_ids = {c['id'] for c in self._project.get_classes()}
-        for cid, label in all_classes:
-            if cid not in existing_ids:
-                self._project.add_class(label, '#00BFFF')
-                existing_ids.add(cid)
-        self._sync_classes()
-        label_to_id = {c['name']: c['id'] for c in self._project.get_classes()}
+        # 读取显式映射
+        model_class_map = self._project.config.get('model_class_map', {}) or {}
+        classes = self._project.get_classes()
+        name_to_id = {c['name']: c['id'] for c in classes}
 
         count = 0
         for img in unannotated:
@@ -834,13 +955,26 @@ class MainWindow(QMainWindow):
             from backend.annotation.bbox import BBox
             predictions = []
             for r in results:
+                # 按映射修正类别
+                mapped_name = model_class_map.get(str(r.class_id), model_class_map.get(r.class_id))
+                if mapped_name:
+                    actual_id = name_to_id.get(mapped_name)
+                    if actual_id is None:
+                        continue  # 映射的类别不存在，跳过
+                    label = mapped_name
+                    class_id = actual_id
+                else:
+                    # 无映射则按名称匹配
+                    actual_id = name_to_id.get(r.label)
+                    if actual_id is None:
+                        continue
+                    label = r.label
+                    class_id = actual_id
+
                 bbox = BBox(
-                    class_id=label_to_id.get(r.label, r.class_id),
-                    label=r.label,
-                    x=r.x,
-                    y=r.y,
-                    w=r.w,
-                    h=r.h,
+                    class_id=class_id,
+                    label=label,
+                    x=r.x, y=r.y, w=r.w, h=r.h,
                     score=r.score,
                 )
                 predictions.append(bbox)

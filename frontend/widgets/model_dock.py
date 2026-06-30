@@ -4,7 +4,7 @@
 """
 
 from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout,
+    QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QSlider, QFileDialog,
     QFrame, QMessageBox, QToolButton,
 )
@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 
-class ModelDock(QDockWidget):
+class ModelDock(QWidget):
     """模型管理面板"""
 
     # 信号
@@ -25,9 +25,10 @@ class ModelDock(QDockWidget):
     accept_all_requested = pyqtSignal(float)            # 全部接受（带阈值）
     reject_all_requested = pyqtSignal(float)            # 全部拒绝
     conf_threshold_changed = pyqtSignal(float)          # 置信度阈值变化
+    class_mapping_requested = pyqtSignal()              # 配置类别映射
 
     def __init__(self, parent=None):
-        super().__init__("🤖 模型管理", parent)
+        super().__init__(parent)
         self._model_loaded = False
         self._prediction_count = 0
         self._model_path = ""  # 保存完整路径
@@ -36,11 +37,8 @@ class ModelDock(QDockWidget):
 
     def _setup_ui(self):
         self.setMinimumWidth(220)
-        self.setFeatures(QDockWidget.DockWidgetMovable |
-                         QDockWidget.DockWidgetFloatable)
 
-        main = QWidget()
-        layout = QVBoxLayout(main)
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(6)
 
@@ -101,12 +99,36 @@ class ModelDock(QDockWidget):
         layout.addWidget(self._make_sep())
 
         # ── 置信度阈值 ──
-        layout.addWidget(QLabel("置信度阈值:"))
+        thresh_header = QLabel("置信度阈值")
+        thresh_header.setStyleSheet("color: #cccccc; font-size: 12px; font-weight: bold;")
+        layout.addWidget(thresh_header)
         threshold_layout = QHBoxLayout()
         self._threshold_slider = QSlider(Qt.Horizontal)
         self._threshold_slider.setRange(5, 95)      # 0.05 ~ 0.95
         self._threshold_slider.setValue(25)          # 默认 0.25
         self._threshold_slider.valueChanged.connect(self._on_threshold_changed)
+        self._threshold_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #555555;
+                height: 6px;
+                background: #3d3d3d;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #0d6efd;
+                border: 1px solid #0d6efd;
+                width: 14px;
+                height: 14px;
+                margin: -5px 0;
+                border-radius: 7px;
+            }
+            QSlider::sub-page:horizontal {
+                background: #0d6efd;
+                border: 1px solid #555555;
+                height: 6px;
+                border-radius: 3px;
+            }
+        """)
         threshold_layout.addWidget(self._threshold_slider, 1)
 
         self._threshold_label = QLabel("0.25")
@@ -114,6 +136,19 @@ class ModelDock(QDockWidget):
         self._threshold_label.setStyleSheet("color: #00ccff; font-weight: bold;")
         threshold_layout.addWidget(self._threshold_label)
         layout.addLayout(threshold_layout)
+
+        # ── 类别映射 ──
+        mapping_layout = QHBoxLayout()
+        self._mapping_btn = QPushButton("📋 类别映射")
+        self._mapping_btn.setToolTip("配置模型输出索引到项目类别的映射关系")
+        self._mapping_btn.clicked.connect(self._on_class_mapping)
+        self._mapping_btn.setEnabled(False)
+        mapping_layout.addWidget(self._mapping_btn)
+
+        self._mapping_status = QLabel("未配置")
+        self._mapping_status.setStyleSheet("color: #888888; font-size: 10px;")
+        mapping_layout.addWidget(self._mapping_status)
+        layout.addLayout(mapping_layout)
 
         # ── 分隔线 ──
         layout.addWidget(self._make_sep())
@@ -169,7 +204,7 @@ class ModelDock(QDockWidget):
         layout.addWidget(tips)
 
         layout.addStretch()
-        self.setWidget(main)
+        # no setWidget — ModelDock is now a QWidget
 
     def _make_sep(self) -> QFrame:
         sep = QFrame()
@@ -195,6 +230,7 @@ class ModelDock(QDockWidget):
             self._unload_btn.setEnabled(True)
             self._auto_btn.setEnabled(True)
             self._batch_btn.setEnabled(True)
+            self._mapping_btn.setEnabled(True)
         else:
             self._status_label.setText("⚪ 模型: 未加载")
             self._status_label.setStyleSheet("""
@@ -207,6 +243,9 @@ class ModelDock(QDockWidget):
             self._unload_btn.setEnabled(False)
             self._auto_btn.setEnabled(False)
             self._batch_btn.setEnabled(False)
+            self._mapping_btn.setEnabled(False)
+            self._mapping_status.setText("未配置")
+            self._mapping_status.setStyleSheet("color: #888888; font-size: 10px;")
             self.set_prediction_count(0)
             self._model_path = ""
             self._path_label.setText("未选择模型")
@@ -236,6 +275,20 @@ class ModelDock(QDockWidget):
         self._path_label.setText(display)
         self._path_label.setToolTip(path)
 
+    def set_model_class_names(self, names: list):
+        """保存模型输出类别名称列表"""
+        self._model_class_names = names
+
+    def set_mapping_status(self, configured: bool, detail: str = ""):
+        """更新映射状态"""
+        self._mapping_btn.setEnabled(True)
+        if configured:
+            self._mapping_status.setText(f"✓ {detail}" if detail else "✓ 已配置")
+            self._mapping_status.setStyleSheet("color: #00cc66; font-size: 10px;")
+        else:
+            self._mapping_status.setText("未配置")
+            self._mapping_status.setStyleSheet("color: #888888; font-size: 10px;")
+
     # ── 事件处理 ──
 
     def _on_browse_model(self):
@@ -258,6 +311,10 @@ class ModelDock(QDockWidget):
     def _on_unload_model(self):
         """卸载模型"""
         self.unload_model_requested.emit()
+
+    def _on_class_mapping(self):
+        """配置类别映射"""
+        self.class_mapping_requested.emit()
 
     def _on_threshold_changed(self, value: int):
         """置信度滑块变化"""

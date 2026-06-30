@@ -4,7 +4,7 @@
 """
 
 from PyQt5.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout,
+    QWidget, QVBoxLayout, QHBoxLayout,
     QTreeWidget, QTreeWidgetItem, QListWidget, QListWidgetItem,
     QPushButton, QLabel, QFileDialog, QMessageBox,
     QInputDialog, QSplitter, QFrame, QToolButton, QProgressBar,
@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Optional, List, Callable, Dict
 
 
-class ProjectDock(QDockWidget):
+class ProjectDock(QWidget):
     """项目管理面板"""
 
     # 信号
@@ -28,19 +28,16 @@ class ProjectDock(QDockWidget):
     project_opened = pyqtSignal(object)      # 项目打开
     project_closed = pyqtSignal()
     import_images_requested = pyqtSignal()   # 请求导入图片
+    image_delete_requested = pyqtSignal(int) # 删除图片 (image_id)
 
     def __init__(self, parent=None):
-        super().__init__("项目管理", parent)
+        super().__init__(parent)
         self._project = None
         self._setup_ui()
 
     def _setup_ui(self):
-        self.setMinimumWidth(250)
-        self.setFeatures(QDockWidget.DockWidgetMovable |
-                         QDockWidget.DockWidgetFloatable)
 
-        main = QWidget()
-        layout = QVBoxLayout(main)
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
 
@@ -137,6 +134,8 @@ class ProjectDock(QDockWidget):
         self._image_list = QListWidget()
         self._image_list.setSelectionMode(QListWidget.SingleSelection)
         self._image_list.itemDoubleClicked.connect(self._on_image_clicked)
+        self._image_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._image_list.customContextMenuRequested.connect(self._on_image_context_menu)
         self._image_list.setStyleSheet("""
             QListWidget {
                 background-color: #252526;
@@ -180,7 +179,6 @@ class ProjectDock(QDockWidget):
         """)
         layout.addWidget(self._progress_bar)
 
-        self.setWidget(main)
         self._refresh_project_list()
 
     # ── 项目管理 ──
@@ -332,6 +330,23 @@ class ProjectDock(QDockWidget):
         image_id = item.data(Qt.UserRole)
         if image_id is not None:
             self.image_selected.emit(image_id)
+
+    def _on_image_context_menu(self, pos):
+        """图片列表右键菜单"""
+        item = self._image_list.itemAt(pos)
+        if not item or not self._project:
+            return
+        image_id = item.data(Qt.UserRole)
+        if image_id is None:
+            return
+
+        menu = QMenu(self)
+        delete_action = menu.addAction("🗑 删除此图片")
+        delete_action.setIcon(self.style().standardIcon(
+            self.style().SP_TrashIcon))
+        delete_action.triggered.connect(
+            lambda: self.image_delete_requested.emit(image_id))
+        menu.exec_(self._image_list.mapToGlobal(pos))
 
     def _on_delete_project(self):
         """删除选中的项目"""

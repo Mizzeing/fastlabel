@@ -35,6 +35,7 @@ class Project:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._create_tables()
+        self._migrate_if_needed()
 
     def _create_tables(self):
         cursor = self._conn.cursor()
@@ -45,6 +46,7 @@ class Project:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 path TEXT NOT NULL UNIQUE,
                 filename TEXT NOT NULL,
+                source_path TEXT NOT NULL DEFAULT '',
                 width INTEGER NOT NULL DEFAULT 0,
                 height INTEGER NOT NULL DEFAULT 0,
                 file_size INTEGER NOT NULL DEFAULT 0,
@@ -55,48 +57,16 @@ class Project:
             )
         """)
 
-        # 类别表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS classes (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL UNIQUE,
-                color TEXT NOT NULL DEFAULT '#FFFFFF',
-                shortcut_key TEXT DEFAULT '',
-                created_at TEXT NOT NULL
-            )
-        """)
-
-        # 标注表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS annotations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                annotation_id TEXT NOT NULL UNIQUE,
-                image_id INTEGER NOT NULL,
-                class_id INTEGER NOT NULL,
-                x REAL NOT NULL,
-                y REAL NOT NULL,
-                width REAL NOT NULL,
-                height REAL NOT NULL,
-                score REAL NOT NULL DEFAULT 1.0,
-                status TEXT NOT NULL DEFAULT 'manual',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
-                FOREIGN KEY (class_id) REFERENCES classes(id)
-            )
-        """)
-
-        # 索引
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_annotations_image
-            ON annotations(image_id)
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_images_status
-            ON images(status)
-        """)
-
         self._conn.commit()
+
+    def _migrate_if_needed(self):
+        """数据库迁移：为旧数据库添加新列"""
+        cols = [row['name'] for row in
+                self._conn.execute("PRAGMA table_info(images)").fetchall()]
+        if 'source_path' not in cols:
+            self._conn.execute(
+                "ALTER TABLE images ADD COLUMN source_path TEXT NOT NULL DEFAULT ''")
+            self._conn.commit()
 
     # ── 连接管理 ──
 
@@ -178,12 +148,13 @@ class Project:
     # ── 图片管理 ──
 
     def add_image(self, path: str, filename: str, width: int, height: int,
-                  file_size: int = 0) -> int:
+                  file_size: int = 0, source_path: str = '') -> int:
         now = datetime.now().isoformat()
         cursor = self._conn.execute("""
-            INSERT OR IGNORE INTO images (path, filename, width, height, file_size, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (path, filename, width, height, file_size, now, now))
+            INSERT OR IGNORE INTO images
+                (path, filename, width, height, file_size, source_path, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (path, filename, width, height, file_size, source_path, now, now))
         self._conn.commit()
         return cursor.lastrowid or self.get_image_id_by_path(path)
 

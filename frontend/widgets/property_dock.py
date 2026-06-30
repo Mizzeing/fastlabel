@@ -166,14 +166,14 @@ class PropertyDock(QDockWidget):
             self._class_combo.addItem(f"● {c['name']}")
             self._class_combo.setItemData(
                 self._class_combo.count() - 1, c['id'], Qt.UserRole)
-        self._class_combo.blockSignals(False)
 
-        # 恢复
+        # 恢复（此时信号仍阻塞，不会触发 _on_class_combo_changed）
         if current_id is not None:
             for i in range(self._class_combo.count()):
                 if self._class_combo.itemData(i, Qt.UserRole) == current_id:
                     self._class_combo.setCurrentIndex(i)
                     break
+        self._class_combo.blockSignals(False)
 
     def _block_signals(self, block: bool):
         self._x_spin.blockSignals(block)

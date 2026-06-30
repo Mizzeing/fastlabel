@@ -175,11 +175,16 @@ class ImageView(QWidget):
 
     def set_mode(self, mode: str):
         self.canvas.set_mode(mode)
+        self.sync_mode_buttons(mode)
+
+    def sync_mode_buttons(self, mode: str):
+        """同步工具栏按钮状态（不触发 canvas.set_mode，避免循环）"""
         idx_map = {Mode.SELECT: 0, Mode.DRAW: 1, Mode.PAN: 2}
         idx = idx_map.get(mode, 0)
-        btn = self._mode_group.button(idx)
-        if btn:
-            btn.setChecked(True)
+        for i in range(3):
+            btn = self._mode_group.button(i)
+            if btn:
+                btn.setChecked(i == idx)
 
     def load_image(self, image_array: np.ndarray):
         self.canvas.load_image(image_array)

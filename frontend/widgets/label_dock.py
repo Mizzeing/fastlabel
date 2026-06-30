@@ -141,7 +141,7 @@ class LabelDock(QDockWidget):
             self._class_combo.setCurrentIndex(idx)
 
     def select_annotation(self, shape: Optional[Shape]):
-        """选中列表中对应的项（同时跟踪最后选中）"""
+        """选中列表中对应的单个项"""
         self._last_selected = shape
         if shape is None:
             self._list.blockSignals(True)
@@ -155,6 +155,16 @@ class LabelDock(QDockWidget):
                 self._list.setCurrentRow(i)
                 self._list.blockSignals(False)
                 return
+
+    def select_annotations(self, shapes: List[Shape]):
+        """多选：高亮列表中的多个项"""
+        self._list.blockSignals(True)
+        self._list.clearSelection()
+        for i, ann in enumerate(self._annotations):
+            if ann in shapes:
+                self._list.item(i).setSelected(True)
+                self._last_selected = ann
+        self._list.blockSignals(False)
 
     def get_current_class_id(self) -> int:
         """获取当前选中的类别 ID"""

@@ -297,9 +297,11 @@ class MainWindow(QMainWindow):
         canvas = self._image_view.canvas
         canvas.annotation_added.connect(self._on_annotation_added)
         canvas.annotation_selected.connect(self._on_annotation_selected)
+        canvas.annotation_toggled.connect(self._on_annotation_toggled)
         canvas.annotation_changed.connect(self._on_annotation_changed)
         canvas.annotation_class_changed.connect(self._on_label_class_changed)
         canvas.mode_changed.connect(self._on_mode_changed)
+        canvas.mode_changed.connect(self._image_view.sync_mode_buttons)
 
         # ImageView
         self._image_view.status_message.connect(self._on_status_message)
@@ -364,6 +366,16 @@ class MainWindow(QMainWindow):
         self._update_title()
         self._update_ui_state()
         self._status(f"已打开项目: {project.name}")
+
+        # 自动加载上次使用的模型
+        model_cfg = project.config.get('model')
+        if model_cfg and isinstance(model_cfg, dict):
+            model_path = model_cfg.get('path', '')
+            threshold = model_cfg.get('conf_threshold', 0.25)
+            from pathlib import Path
+            if model_path and Path(model_path).exists():
+                self._inference_manager.conf_threshold = threshold
+                self._on_load_model(model_path)
 
     def _on_close_project(self):
         """关闭项目"""
@@ -517,8 +529,24 @@ class MainWindow(QMainWindow):
 
     def _on_annotation_selected(self, shape: Optional[Shape]):
         """选中标注（来自 Canvas）"""
-        if shape is None or shape != self._annotation_manager.selected:
-            self._annotation_manager.select(shape)
+        try:
+            if shape is None:
+                self._annotation_manager.select(None)
+            elif shape != self._annotation_manager.selected:
+                self._annotation_manager.select(shape)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self._status(f"选择出错: {e}")
+
+    def _on_annotation_toggled(self, shape: Shape):
+        """Ctrl+点击切换选中状态"""
+        try:
+            self._annotation_manager.toggle_select(shape)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self._status(f"切换选中出错: {e}")
 
     def _on_label_selected(self, shape: Optional[Shape]):
         """标注列表选中（来自 LabelDock）"""
@@ -530,8 +558,11 @@ class MainWindow(QMainWindow):
         self._annotation_manager.delete(shape)
 
     def _on_label_class_changed(self, shape: Shape, class_id: int, label: str):
-        """修改类别"""
-        self._annotation_manager.change_class(shape, class_id, label)
+        """修改类别（多选时批量修改所有选中标注）"""
+        if self._annotation_manager.selection_count > 1 and shape in self._annotation_manager.selected_shapes:
+            self._annotation_manager.change_class_selected(class_id, label)
+        else:
+            self._annotation_manager.change_class(shape, class_id, label)
 
     def _on_request_delete(self, shape: Shape):
         """请求删除标注（来自 Canvas）"""
@@ -562,13 +593,20 @@ class MainWindow(QMainWindow):
         self._redo_action.setEnabled(self._annotation_manager.can_redo())
 
     def _on_selection_updated(self):
-        """选中状态更新"""
-        selected = self._annotation_manager.selected
-        self._image_view.canvas.update_annotations(
-            self._annotation_manager.annotations, selected)
-        self._label_dock.select_annotation(selected)
+        """选中状态更新（支持多选）"""
+        selected_shapes = self._annotation_manager.selected_shapes
+        primary = self._annotation_manager.selected
+        canvas = self._image_view.canvas
+        canvas.update_annotations(self._annotation_manager.annotations, primary)
+
+        # 多选时标注列表全高亮
+        if len(selected_shapes) > 1:
+            self._label_dock.select_annotations(selected_shapes)
+        else:
+            self._label_dock.select_annotation(primary)
+
         self._property_dock.set_shape(
-            selected,
+            primary if len(selected_shapes) <= 1 else None,
             self._project.get_classes() if self._project else [])
 
     def _save_current_annotations(self):
@@ -633,6 +671,15 @@ class MainWindow(QMainWindow):
             self._inference_manager.load_model(model_path)
             info = self._inference_manager.get_model_info()
             self._model_dock.set_model_status(True, info['name'])
+            self._model_dock.set_model_path(model_path)
+
+            # 保存模型路径到项目配置
+            if self._project:
+                self._project.config.set('model', {
+                    'path': model_path,
+                    'conf_threshold': self._inference_manager.conf_threshold,
+                })
+
             self._status(f"模型已加载: {info['name']}")
         except ImportError as e:
             QMessageBox.critical(self, "缺少依赖",
@@ -646,6 +693,8 @@ class MainWindow(QMainWindow):
         self._model_dock.set_model_status(False)
         self._annotation_manager.clear_predictions()
         self._canvas_update_predictions()
+        if self._project:
+            self._project.config.set('model', None)
         self._status("模型已卸载")
 
     def _on_conf_threshold(self, threshold: float):
@@ -712,7 +761,7 @@ class MainWindow(QMainWindow):
         predictions = []
         for r in results:
             bbox = BBox(
-                class_id=label_to_id.get(r.label, r.class_id),
+                class_id=r.class_id,
                 label=r.label,
                 x=r.x,
                 y=r.y,
@@ -786,7 +835,7 @@ class MainWindow(QMainWindow):
             predictions = []
             for r in results:
                 bbox = BBox(
-                    class_id=r.class_id,
+                    class_id=label_to_id.get(r.label, r.class_id),
                     label=r.label,
                     x=r.x,
                     y=r.y,

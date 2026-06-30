@@ -61,6 +61,7 @@ class Canvas(QWidget):
     annotation_class_changed = pyqtSignal(object, int, str)  # 修改类别
     annotation_accept_requested = pyqtSignal(object)  # 接受预测
     annotation_reject_requested = pyqtSignal(object)  # 拒绝预测
+    annotation_toggled = pyqtSignal(object)           # 切换选中(Ctrl+点击)
     image_changed = pyqtSignal()               # 图片切换
     status_message = pyqtSignal(str)           # 状态栏消息
 
@@ -297,16 +298,15 @@ class Canvas(QWidget):
 
         # ── 绘制标注 ──
         if self._annotations:
-            for i, shape in enumerate(self._annotations):
+            for shape in self._annotations:
                 if isinstance(shape, BBox):
-                    self._draw_bbox(painter, shape, is_selected=(shape == self._selected))
+                    self._draw_bbox(painter, shape, is_selected=shape.selected)
 
         # ── 绘制预测框（虚线蓝色，低于标注层） ──
         if self._predictions:
             for shape in self._predictions:
                 if isinstance(shape, BBox):
-                    self._draw_prediction_bbox(painter, shape,
-                                               is_selected=(shape == self._selected))
+                    self._draw_prediction_bbox(painter, shape, is_selected=shape.selected)
 
         # ── 绘制中的框 ──
         if self._drawing:
@@ -464,26 +464,38 @@ class Canvas(QWidget):
 
         pos = event.pos()
         img_pos = self.canvas_to_image(pos.x(), pos.y())
+        ctrl = bool(event.modifiers() & Qt.ControlModifier)
 
         if event.button() == Qt.LeftButton:
             if self._mode == Mode.DRAW:
                 self._start_draw(pos)
             elif self._mode == Mode.SELECT:
-                if self._selected:
-                    handle = self._hit_handle(pos)
-                    if handle >= 0:
-                        self._start_resize(pos, handle)
-                        return
-                    if self._hit_bbox(pos, self._selected):
-                        self._start_drag(pos, img_pos)
-                        return
+                try:
+                    if self._selected and not ctrl:
+                        handle = self._hit_handle(pos)
+                        if handle >= 0:
+                            self._start_resize(pos, handle)
+                            return
+                        if self._hit_bbox(pos, self._selected):
+                            self._start_drag(pos, img_pos)
+                            return
 
-                # 尝试选择，否则开始选区
-                hit = self._hit_test(pos)
-                if hit:
-                    self.annotation_selected.emit(hit)
-                else:
-                    self._start_select_rect(pos)
+                    # Ctrl+点击 → 切换选中；普通点击 → 单选
+                    hit = self._hit_test(pos)
+                    if hit:
+                        if ctrl:
+                            self.annotation_toggled.emit(hit)
+                        else:
+                            self.annotation_selected.emit(hit)
+                    elif not ctrl:
+                        # 点击空白：取消选中 + 平移
+                        if self._selected:
+                            self.annotation_selected.emit(None)
+                        self._start_pan(pos)
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    self.status_message.emit(f"鼠标操作出错: {e}")
 
             elif self._mode == Mode.PAN:
                 self._start_pan(pos)
@@ -593,7 +605,11 @@ class Canvas(QWidget):
                 self._cancel_draw()
             self.annotation_selected.emit(None)
         elif key == Qt.Key_W:
-            self.set_mode(Mode.DRAW)
+            # W 键在绘制和选择之间切换
+            if self._mode == Mode.DRAW:
+                self.set_mode(Mode.SELECT)
+            else:
+                self.set_mode(Mode.DRAW)
         elif key == Qt.Key_S:
             self.set_mode(Mode.SELECT)
         elif key == Qt.Key_H:

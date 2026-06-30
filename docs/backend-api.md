@@ -103,32 +103,39 @@
 ## `backend.annotation.manager` — AnnotationManager
 
 ### AnnotationManager
-标注管理器，集成 CommandManager。
+标注管理器，集成 CommandManager，支持多选。
 
 **属性:**
 | 属性 | 说明 |
 |------|------|
 | annotations | 当前图片的标注列表 |
-| selected | 当前选中的标注 |
+| selected | 主选中项（多选时返回最后点击的） |
+| selected_shapes | 所有选中的标注列表 |
+| selection_count | 选中数量 |
+| predictions | 模型预测结果列表 |
 
 **方法:**
 | 方法 | 说明 |
 |------|------|
 | `add(shape)` | 添加标注（含 Undo） |
 | `delete(shape=None)` | 删除标注（含 Undo） |
-| `delete_selected()` | 删除选中的标注 |
+| `delete_selected()` | 删除所有选中的标注 |
 | `move(shape, dx, dy)` | 移动标注（含 Undo） |
 | `resize(shape, ...)` | 调整大小（含 Undo） |
-| `change_class(shape, id, label)` | 修改类别（含 Undo） |
-| `select(shape)` | 选中指定标注 |
-| `select_at(px, py)` | 选中指定坐标处的标注 |
+| `change_class(shape, id, label)` | 修改单个类别（含 Undo） |
+| `change_class_selected(id, label)` | 批量修改所有选中标注类别 |
+| `select(shape)` | 单选（清除之前选中） |
+| `toggle_select(shape)` | 切换选中（Ctrl+点击时用） |
+| `select_at(px, py, toggle=False)` | 选中指定坐标处的标注 |
 | `clear_selection()` | 取消选中 |
-| `undo()` | 撤销 |
-| `redo()` | 重做 |
-| `can_undo()` | 检查可撤销 |
-| `can_redo()` | 检查可重做 |
+| `undo()` / `redo()` | 撤销/重做 |
 | `clear()` | 清空所有标注和历史 |
 | `set_annotations(list)` | 直接设置标注列表 |
+| `set_predictions(list)` | 设置预测结果 |
+| `accept_prediction(shape)` | 接受单个预测 |
+| `reject_prediction(shape)` | 拒绝单个预测 |
+| `accept_all_predictions(min_score)` | 全部接受 |
+| `reject_all_predictions(min_score)` | 全部拒绝 |
 
 ---
 
@@ -191,3 +198,42 @@ YOLO 格式导出器。
 | `export_all()` | 导出所有标注 + data.yaml |
 | `export_image(image_id)` | 导出单张图片的标注 |
 | `annotations_to_yolo(list)` | 静态方法，将标注列表转为 YOLO 字符串 |
+
+---
+
+## `backend.inference` — 推理模块
+
+### BasePredictor (ABC)
+预测器抽象基类，所有模型预测器实现统一接口。
+
+| 方法 | 说明 |
+|------|------|
+| `load(model_path)` | 加载模型权重 |
+| `predict(image, conf_threshold)` | 预测单张图片，返回 List[PredictionResult] |
+| `unload()` | 卸载模型，释放显存 |
+| `is_loaded()` | 模型是否已加载 |
+| `name` | 模型名称（属性） |
+| `model_type` | 模型类型（属性） |
+
+### PredictionResult
+预测结果数据结构。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| class_id | int | 类别 ID |
+| label | str | 类别名称 |
+| x, y | float | 归一化左上角坐标 |
+| w, h | float | 归一化宽高 |
+| score | float | 置信度 |
+
+### InferenceManager
+推理管理器。
+
+| 方法 | 说明 |
+|------|------|
+| `load_model(path, type='yolo')` | 加载模型 |
+| `unload_model()` | 卸载模型 |
+| `predict(image, conf_threshold)` | 预测 |
+| `predict_and_filter(image)` | 预测+过滤 |
+| `conf_threshold` | 置信度阈值（属性） |
+| `is_loaded` | 模型是否已加载（属性） |

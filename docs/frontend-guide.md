@@ -4,12 +4,11 @@
 
 ```
 MainWindow
-├── ProjectDock (左侧)
+├── ProjectDock + ModelDock (左侧，Tab切换)
 ├── ImageView (中央)
 │   ├── 工具条 (模式切换 + 缩放控制)
 │   └── Canvas (核心画布)
-├── LabelDock (右侧)
-├── PropertyDock (右侧，tab 在 LabelDock 下面)
+├── LabelDock + PropertyDock (右侧，Tab切换)
 └── 菜单栏 + 状态栏
 ```
 
@@ -21,9 +20,18 @@ Canvas 有三种模式，通过 `Mode` 常量定义：
 
 | 模式 | 快捷键 | 光标 | 功能 |
 |------|--------|------|------|
-| SELECT | `S` | 箭头/移动 | 选择、拖拽、调整大小、框选 |
+| SELECT | `S` | 箭头/移动 | 选择、拖拽、调整大小、多选、空白→平移 |
 | DRAW | `W` | 十字 | 拖拽画矩形框 |
 | PAN | `H` | 抓手 | 平移视图 |
+
+### 多选操作
+
+| 操作 | 效果 |
+|------|------|
+| 点击框 | 单选（取消之前选中） |
+| Ctrl+点击 | 切换该框选中状态（多选） |
+| 点击空白 | 取消全部选中 + 平移 |
+| 右键 → 修改类别 | 单个/批量改所有选中标注的类别 |
 
 ### 绘制流程
 
@@ -92,8 +100,13 @@ offset += (img_after - img_before) * scale
 ```
 Canvas.annotation_added ──────────────────→ MainWindow._on_annotation_added
 Canvas.annotation_selected ───────────────→ MainWindow._on_annotation_selected
+Canvas.annotation_toggled ────────────────→ MainWindow._on_annotation_toggled   ← Ctrl+点击多选
 Canvas.annotation_changed ────────────────→ MainWindow._on_annotation_changed
+Canvas.annotation_class_changed ──────────→ MainWindow._on_label_class_changed
+Canvas.annotation_accept_requested ───────→ MainWindow._on_accept_prediction
+Canvas.annotation_reject_requested ───────→ MainWindow._on_reject_prediction
 Canvas.mode_changed ─────────────────────→ MainWindow._on_mode_changed
+Canvas.mode_changed ─────────────────────→ ImageView.sync_mode_buttons          ← 同步工具栏按钮
 Canvas.status_message ───────────────────→ MainWindow._on_status_message
 
 LabelDock.annotation_selected ────────────→ MainWindow._on_label_selected
@@ -104,9 +117,50 @@ PropertyDock.property_changed ────────────→ MainWindow
 
 ProjectDock.image_selected ───────────────→ MainWindow._on_image_selected
 ProjectDock.project_opened ───────────────→ MainWindow._on_project_opened
+ProjectDock.project_closed ───────────────→ MainWindow 关闭清理
+
+ModelDock.load_model_requested ───────────→ MainWindow._on_load_model
+ModelDock.unload_model_requested ─────────→ MainWindow._on_unload_model
+ModelDock.auto_label_requested ───────────→ MainWindow._on_auto_label
+ModelDock.batch_label_requested ──────────→ MainWindow._on_batch_label
+ModelDock.accept_all_requested ───────────→ MainWindow._on_accept_all
+ModelDock.reject_all_requested ───────────→ MainWindow._on_reject_all
+ModelDock.conf_threshold_changed ─────────→ MainWindow._on_conf_threshold
 
 AnnotationManager.on_change ──────────────→ MainWindow._on_annotations_updated
 AnnotationManager.on_select_change ───────→ MainWindow._on_selection_updated
+AnnotationManager.on_predictions_change ──→ MainWindow._on_predictions_updated
+```
+
+## ModelDock 面板
+
+模型管理面板，用于加载 YOLO 模型、自动标注、接受/拒绝预测。
+
+### 功能
+- 选择并加载 .pt 模型文件（路径自动持久化到 config.yaml）
+- 卸载模型释放显存
+- 置信度阈值滑块 (0.05~0.95)
+- 自动标注当前图片
+- 批量标注所有未标注图片
+- 全部接受 / 全部拒绝
+
+### 信号
+```
+load_model_requested(path)      → MainWindow._on_load_model
+unload_model_requested()        → MainWindow._on_unload_model
+auto_label_requested()          → MainWindow._on_auto_label
+batch_label_requested()         → MainWindow._on_batch_label
+accept_all_requested(threshold) → MainWindow._on_accept_all
+reject_all_requested(threshold) → MainWindow._on_reject_all
+conf_threshold_changed(value)   → MainWindow._on_conf_threshold
+```
+
+### 预测工作流
+```
+用户点「自动标注」 → YOLO 预测 → 蓝色虚线框显示
+→ 用户按 Enter 接受 / Del 拒绝
+→ 接受的预测转为正式标注（score=1.0）
+→ 自动保存到项目数据库
 ```
 
 ## 添加新 DockWidget

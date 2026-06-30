@@ -24,6 +24,9 @@ display:
 export:
   auto_export: false
   format: yolo
+model:
+  conf_threshold: 0.25
+  path: /home/quxin/A_Project/A_项目/施浪/LED缺陷/project/runs/detect/runs/train/led_v5/weights/best.pt
 project:
   created_at: '2026-06-30T17:08:19.154536'
   description: ''

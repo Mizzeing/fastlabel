@@ -86,10 +86,10 @@ class ModelDock(QWidget):
         layout.addWidget(self._make_sep())
 
         # ── 置信度阈值 ──
-        thresh_header = QLabel("置信度阈值")
-        thresh_header.setStyleSheet("color: #cccccc; font-size: 12px; font-weight: bold;")
-        layout.addWidget(thresh_header)
         threshold_layout = QHBoxLayout()
+        thresh_label = QLabel("置信度阈值")
+        thresh_label.setStyleSheet("color: #cccccc; font-size: 11px;")
+        threshold_layout.addWidget(thresh_label)
         self._threshold_slider = QSlider(Qt.Horizontal)
         self._threshold_slider.setRange(5, 95)      # 0.05 ~ 0.95
         self._threshold_slider.setValue(25)          # 默认 0.25

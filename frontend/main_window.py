@@ -1075,6 +1075,8 @@ class MainWindow(QMainWindow):
         count = self._annotation_manager.accept_all_predictions(min_score)
         if count > 0:
             self._save_current_annotations()
+        # 显式清除 canvas 上的预测框，确保不被旧引用污染
+        self._image_view.canvas._predictions = []
         self._canvas_update_predictions()
         self._model_dock.set_prediction_count(
             len(self._annotation_manager.predictions))
@@ -1083,6 +1085,7 @@ class MainWindow(QMainWindow):
     def _on_reject_all(self, min_score: float):
         """全部拒绝"""
         count = self._annotation_manager.reject_all_predictions(min_score)
+        self._image_view.canvas._predictions = []
         self._canvas_update_predictions()
         self._model_dock.set_prediction_count(
             len(self._annotation_manager.predictions))

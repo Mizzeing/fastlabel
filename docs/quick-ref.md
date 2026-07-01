@@ -53,6 +53,8 @@ QT_QPA_PLATFORM=xcb python main.py
 | LED 数据 | `/home/quxin/A_Project/A_项目/施浪/LED缺陷/project/` |
 
 ## 最新改动
+- 文件对话框恢复系统默认样式（palette 系统色）
+- 文件对话框默认到项目目录并记住上次浏览位置
 - 训练闭环（一键训练 + 增量训练）
 - TrainDock 训练管理面板（预设方案、实时进度、日志）
 - 训练数据导出（5 列 YOLO 格式，类别 ID 自动 0-index）

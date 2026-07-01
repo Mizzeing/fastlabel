@@ -115,6 +115,7 @@ class TrainDock(QWidget):
         self._worker: Optional[TrainingWorker] = None
         self._thread: Optional[QThread] = None
         self._is_training = False
+        self._last_checkpoint_dir = str(Path.home())
 
         self._setup_ui()
         self._update_ui_state()
@@ -546,10 +547,16 @@ class TrainDock(QWidget):
 
     def _on_browse_resume(self):
         """选择用于增量训练的检查点"""
+        start_dir = self._last_checkpoint_dir
+        if self._project:
+            models_dir = self._project.path / 'models'
+            if models_dir.exists():
+                start_dir = str(models_dir)
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择模型检查点", str(Path.home()),
+            self, "选择模型检查点", start_dir,
             "模型文件 (*.pt *.engine *.onnx);;所有文件 (*)")
         if path:
+            self._last_checkpoint_dir = str(Path(path).parent)
             self._resume_path_label.setText(Path(path).name)
             self._resume_path_label.setToolTip(path)
             self._resume_path_btn.setText("更换检查点")

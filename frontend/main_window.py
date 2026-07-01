@@ -71,36 +71,36 @@ class MainWindow(QMainWindow):
             QMainWindow {
                 background-color: #1e1e1e;
             }
-            QMenuBar {
+            MainWindow QMenuBar {
                 background-color: #2d2d2d;
                 color: #cccccc;
                 border-bottom: 1px solid #3d3d3d;
                 font-size: 13px;
             }
-            QMenuBar::item:selected {
+            MainWindow QMenuBar::item:selected {
                 background-color: #0d6efd;
             }
-            QMenu {
+            MainWindow QMenu {
                 background-color: #2d2d2d;
                 color: #cccccc;
                 border: 1px solid #3d3d3d;
                 font-size: 13px;
             }
-            QMenu::item:selected {
+            MainWindow QMenu::item:selected {
                 background-color: #0d6efd;
             }
-            QMenu::separator {
+            MainWindow QMenu::separator {
                 height: 1px;
                 background-color: #3d3d3d;
                 margin: 4px 8px;
             }
-            QStatusBar {
+            MainWindow QStatusBar {
                 background-color: #2d2d2d;
                 color: #aaaaaa;
                 border-top: 1px solid #3d3d3d;
                 font-size: 12px;
             }
-            QPushButton {
+            MainWindow QPushButton {
                 background-color: #3d3d3d;
                 color: #cccccc;
                 border: 1px solid #555555;
@@ -108,17 +108,17 @@ class MainWindow(QMainWindow):
                 padding: 4px 12px;
                 font-size: 12px;
             }
-            QPushButton:hover {
+            MainWindow QPushButton:hover {
                 background-color: #4d4d4d;
             }
-            QPushButton:pressed {
+            MainWindow QPushButton:pressed {
                 background-color: #0d6efd;
             }
-            QPushButton:disabled {
+            MainWindow QPushButton:disabled {
                 background-color: #2d2d2d;
                 color: #666666;
             }
-            QToolButton {
+            MainWindow QToolButton {
                 background-color: #3d3d3d;
                 color: #cccccc;
                 border: 1px solid #555555;
@@ -126,18 +126,18 @@ class MainWindow(QMainWindow):
                 padding: 4px 8px;
                 font-size: 11px;
             }
-            QToolButton:hover {
+            MainWindow QToolButton:hover {
                 background-color: #4d4d4d;
             }
-            QToolButton:pressed {
+            MainWindow QToolButton:pressed {
                 background-color: #0d6efd;
             }
-            QToolButton:disabled {
+            MainWindow QToolButton:disabled {
                 background-color: #2d2d2d;
                 color: #666666;
                 border-color: #3d3d3d;
             }
-            QComboBox {
+            MainWindow QComboBox {
                 background-color: #3d3d3d;
                 color: #cccccc;
                 border: 1px solid #555555;
@@ -146,11 +146,11 @@ class MainWindow(QMainWindow):
                 font-size: 11px;
                 min-height: 18px;
             }
-            QComboBox::drop-down {
+            MainWindow QComboBox::drop-down {
                 border: none;
                 width: 16px;
             }
-            QComboBox QAbstractItemView {
+            MainWindow QComboBox QAbstractItemView {
                 background-color: #2d2d2d;
                 color: #cccccc;
                 selection-background-color: #0d6efd;
@@ -158,14 +158,14 @@ class MainWindow(QMainWindow):
                 border: 1px solid #555555;
                 outline: none;
             }
-            QComboBox QAbstractItemView::item {
+            MainWindow QComboBox QAbstractItemView::item {
                 padding: 4px 8px;
                 min-height: 20px;
             }
-            QComboBox QAbstractItemView::item:hover {
+            MainWindow QComboBox QAbstractItemView::item:hover {
                 background-color: #0d6efd;
             }
-            QLineEdit {
+            MainWindow QLineEdit {
                 background-color: #3d3d3d;
                 color: #cccccc;
                 border: 1px solid #555555;
@@ -173,69 +173,81 @@ class MainWindow(QMainWindow):
                 padding: 2px 6px;
                 font-size: 12px;
             }
-            QMessageBox {
+            MainWindow QMessageBox {
                 background-color: #2d2d2d;
                 color: #cccccc;
             }
-            QMessageBox QLabel {
+            MainWindow QMessageBox QLabel {
                 color: #cccccc;
                 font-size: 13px;
             }
-            QMessageBox QPushButton {
+            MainWindow QMessageBox QPushButton {
                 min-width: 80px;
             }
-            QDialog {
+            MainWindow QDialog {
                 background-color: #2d2d2d;
                 color: #cccccc;
             }
-            QDialog QLabel {
+            MainWindow QDialog QLabel {
                 color: #cccccc;
             }
-            QGroupBox {
+            MainWindow QGroupBox {
                 color: #cccccc;
                 border: 1px solid #555555;
                 border-radius: 4px;
                 margin-top: 8px;
                 font-size: 12px;
             }
-            QGroupBox::title {
+            MainWindow QGroupBox::title {
                 subcontrol-origin: margin;
                 left: 8px;
                 padding: 0 4px;
             }
-            /* 文件选择对话框 */
+            /* 文件对话框恢复系统默认样式（覆盖前面的 MainWindow 规则） */
             QFileDialog {
-                background-color: #2d2d2d;
-                color: #cccccc;
+                background: palette(window);
+                color: palette(windowText);
             }
-            QFileDialog QLabel {
-                color: #cccccc;
+            QFileDialog QLabel { color: palette(windowText); }
+            QFileDialog QComboBox,
+            QFileDialog QLineEdit,
+            QFileDialog QSpinBox,
+            QFileDialog QDoubleSpinBox {
+                background: palette(base);
+                color: palette(windowText);
+                border: 1px solid palette(mid);
+                border-radius: 2px;
+                padding: 1px 3px;
+            }
+            QFileDialog QComboBox QAbstractItemView {
+                background: palette(window);
+                color: palette(windowText);
+                selection-background-color: palette(highlight);
+                selection-color: palette(highlightedText);
+            }
+            QFileDialog QPushButton,
+            QFileDialog QToolButton {
+                background: palette(button);
+                color: palette(buttonText);
+                border: 1px solid palette(mid);
+                border-radius: 3px;
+                padding: 3px 10px;
+            }
+            QFileDialog QPushButton:hover,
+            QFileDialog QToolButton:hover {
+                background: palette(light);
             }
             QFileDialog QTreeView,
             QFileDialog QListView,
             QFileDialog QColumnView {
-                background-color: #3d3d3d;
-                color: #cccccc;
-                border: 1px solid #555555;
+                background: palette(base);
+                color: palette(windowText);
+                border: 1px solid palette(mid);
             }
             QFileDialog QTreeView::item:selected,
             QFileDialog QListView::item:selected {
-                background-color: #0d6efd;
-                color: white;
-            }
-            QFileDialog QComboBox {
-                background-color: #3d3d3d;
-                color: #cccccc;
-                border: 1px solid #555555;
-                padding: 2px 4px;
-            }
-            QFileDialog QComboBox QAbstractItemView {
-                background-color: #2d2d2d;
-                color: #cccccc;
-                selection-background-color: #0d6efd;
-            }
-            QFileDialog QPushButton {
-                min-width: 60px;
+                background: palette(highlight);
+                color: palette(highlightedText);
             }
         """)
 
@@ -581,6 +593,9 @@ class MainWindow(QMainWindow):
 
         self._sync_classes()
         self._train_dock.set_project(project)
+        # 文件对话框默认到项目目录
+        self._last_import_dir = str(project.path / 'images')
+        self._last_yolo_dir = str(project.path / 'labels')
         self._update_title()
         self._update_ui_state()
         self._status(f"已打开项目: {project.name}")

@@ -32,6 +32,7 @@ class ModelDock(QWidget):
         self._model_loaded = False
         self._prediction_count = 0
         self._model_path = ""  # 保存完整路径
+        self._last_browse_dir = str(Path.home())  # 记住上次浏览目录
         self._setup_ui()
         self.setMaximumWidth(320)  # 防止被长路径撑开
 
@@ -294,9 +295,10 @@ class ModelDock(QWidget):
     def _on_browse_model(self):
         """选择模型文件"""
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择模型文件", str(Path.home()),
+            self, "选择模型文件", self._last_browse_dir,
             "模型文件 (*.pt *.engine *.onnx);;所有文件 (*)")
         if path:
+            self._last_browse_dir = str(Path(path).parent)
             self.set_model_path(path)
             self._on_load_model()
 

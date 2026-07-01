@@ -158,7 +158,6 @@ class TrainDock(QWidget):
         for name in TRAINING_PRESETS:
             self._preset_combo.addItem(name)
         self._preset_combo.currentTextChanged.connect(self._on_preset_changed)
-        self._preset_combo.setStyleSheet(self._combo_style())
         preset_layout.addWidget(self._preset_combo, 1)
         layout.addLayout(preset_layout)
 
@@ -177,7 +176,6 @@ class TrainDock(QWidget):
         self._arch_combo.setEditable(True)
         self._arch_combo.setCurrentText('yolov8n.pt')
         self._arch_combo.currentTextChanged.connect(self._mark_custom_preset)
-        self._arch_combo.setStyleSheet(self._combo_style())
         param_grid.addWidget(self._arch_combo, row, 1)
         row += 1
 
@@ -188,7 +186,6 @@ class TrainDock(QWidget):
         self._epochs_spin.setValue(100)
         self._epochs_spin.setSuffix(" epoch")
         self._epochs_spin.valueChanged.connect(self._mark_custom_preset)
-        self._epochs_spin.setStyleSheet(self._spin_style())
         param_grid.addWidget(self._epochs_spin, row, 1)
         row += 1
 
@@ -198,7 +195,6 @@ class TrainDock(QWidget):
         self._batch_spin.setRange(1, 256)
         self._batch_spin.setValue(16)
         self._batch_spin.valueChanged.connect(self._mark_custom_preset)
-        self._batch_spin.setStyleSheet(self._spin_style())
         param_grid.addWidget(self._batch_spin, row, 1)
         row += 1
 
@@ -210,7 +206,6 @@ class TrainDock(QWidget):
         self._imgsz_spin.setValue(640)
         self._imgsz_spin.setSuffix(" px")
         self._imgsz_spin.valueChanged.connect(self._mark_custom_preset)
-        self._imgsz_spin.setStyleSheet(self._spin_style())
         param_grid.addWidget(self._imgsz_spin, row, 1)
         row += 1
 
@@ -220,7 +215,6 @@ class TrainDock(QWidget):
         for dev in ['auto', 'cpu', '0', '1', '0,1']:
             self._device_combo.addItem(dev)
         self._device_combo.currentTextChanged.connect(self._mark_custom_preset)
-        self._device_combo.setStyleSheet(self._combo_style())
         param_grid.addWidget(self._device_combo, row, 1)
 
         layout.addLayout(param_grid)
@@ -251,14 +245,7 @@ class TrainDock(QWidget):
         # ══════════════════════════════════════
         self._advanced_btn = QPushButton("▸ 高级参数")
         self._advanced_btn.setCheckable(True)
-        self._advanced_btn.setStyleSheet("""
-            QPushButton {
-                text-align: left; background: transparent; border: none;
-                color: #888888; font-size: 11px; padding: 4px 0;
-            }
-            QPushButton:hover { color: #cccccc; }
-            QPushButton:checked { color: #0d6efd; }
-        """)
+        self._advanced_btn.setObjectName("train_advanced_btn")
         self._advanced_btn.toggled.connect(self._toggle_advanced)
         layout.addWidget(self._advanced_btn)
 
@@ -273,7 +260,6 @@ class TrainDock(QWidget):
         self._optimizer_combo = QComboBox()
         for opt in ['auto', 'SGD', 'Adam', 'AdamW']:
             self._optimizer_combo.addItem(opt)
-        self._optimizer_combo.setStyleSheet(self._combo_style())
         adv_layout.addWidget(self._optimizer_combo, 0, 1)
 
         # 学习率
@@ -283,7 +269,6 @@ class TrainDock(QWidget):
         self._lr_spin.setSingleStep(0.001)
         self._lr_spin.setDecimals(5)
         self._lr_spin.setValue(0.01)
-        self._lr_spin.setStyleSheet(self._spin_style())
         adv_layout.addWidget(self._lr_spin, 1, 1)
 
         # 耐心值 (early stopping)
@@ -292,7 +277,6 @@ class TrainDock(QWidget):
         self._patience_spin.setRange(0, 500)
         self._patience_spin.setValue(50)
         self._patience_spin.setSuffix(" epoch")
-        self._patience_spin.setStyleSheet(self._spin_style())
         adv_layout.addWidget(self._patience_spin, 2, 1)
 
         # 数据增强
@@ -308,7 +292,6 @@ class TrainDock(QWidget):
         self._split_spin.setSingleStep(0.05)
         self._split_spin.setDecimals(2)
         self._split_spin.setValue(0.9)
-        self._split_spin.setStyleSheet(self._spin_style())
         adv_layout.addWidget(self._split_spin, 4, 1)
 
         layout.addWidget(self._advanced_widget)
@@ -321,27 +304,14 @@ class TrainDock(QWidget):
         self._train_btn = QPushButton("🚀 开始训练")
         self._train_btn.setToolTip("导出标注数据并开始训练 YOLO 模型")
         self._train_btn.clicked.connect(self._on_start_training)
-        self._train_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #0d6efd; color: white; font-weight: bold;
-                border: none; border-radius: 4px; padding: 8px 12px; font-size: 12px;
-            }
-            QPushButton:hover { background-color: #0b5ed7; }
-            QPushButton:disabled { background-color: #3d3d3d; color: #888888; }
-        """)
+        self._train_btn.setObjectName("train_start_btn")
         layout.addWidget(self._train_btn)
 
         self._stop_btn = QPushButton("⏹ 停止训练")
         self._stop_btn.setToolTip("停止当前训练（将保存当前检查点）")
         self._stop_btn.clicked.connect(self._on_stop_training)
         self._stop_btn.setVisible(False)
-        self._stop_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #dc3545; color: white; font-weight: bold;
-                border: none; border-radius: 4px; padding: 8px 12px; font-size: 12px;
-            }
-            QPushButton:hover { background-color: #bb2d3b; }
-        """)
+        self._stop_btn.setObjectName("train_stop_btn")
         layout.addWidget(self._stop_btn)
 
         # 自动加载选项
@@ -362,7 +332,7 @@ class TrainDock(QWidget):
         # 进度条 + epoch
         epoch_layout = QHBoxLayout()
         self._epoch_label = QLabel("Epoch: 0/0")
-        self._epoch_label.setStyleSheet("color: #00ccff; font-size: 11px; font-weight: bold;")
+        self._epoch_label.setObjectName("train_epoch_label")
         epoch_layout.addWidget(self._epoch_label)
 
         self._progress_bar = QProgressBar()
@@ -370,17 +340,7 @@ class TrainDock(QWidget):
         self._progress_bar.setValue(0)
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setFixedHeight(16)
-        self._progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #555555; border-radius: 3px;
-                background: #2d2d2d; text-align: center; font-size: 10px; color: #cccccc;
-            }
-            QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #0d6efd, stop:1 #00ccff);
-                border-radius: 2px;
-            }
-        """)
+        self._progress_bar.setObjectName("train_progress_bar")
         epoch_layout.addWidget(self._progress_bar, 1)
         progress_layout.addLayout(epoch_layout)
 
@@ -427,13 +387,7 @@ class TrainDock(QWidget):
         self._log_text.setReadOnly(True)
         self._log_text.setMinimumHeight(60)
         self._log_text.setMaximumHeight(200)
-        self._log_text.setStyleSheet("""
-            QTextEdit {
-                background-color: #1a1a1a; color: #cccccc;
-                border: 1px solid #3d3d3d; border-radius: 3px;
-                padding: 4px; font-family: 'Courier New', monospace; font-size: 10px;
-            }
-        """)
+        self._log_text.setObjectName("train_log_text")
         layout.addWidget(self._log_text)
 
         # 清空日志按钮
@@ -469,32 +423,6 @@ class TrainDock(QWidget):
         label.setStyleSheet("color: #00ccff; font-size: 11px; font-weight: bold;")
         return label
 
-    def _combo_style(self) -> str:
-        return """
-            QComboBox {
-                background-color: #3d3d3d; color: #cccccc;
-                border: 1px solid #555555; border-radius: 3px;
-                padding: 2px 4px; font-size: 11px; min-height: 18px;
-            }
-            QComboBox::drop-down { border: none; width: 16px; }
-            QComboBox QAbstractItemView {
-                background-color: #2d2d2d; color: #cccccc;
-                selection-background-color: #0d6efd; font-size: 11px;
-            }
-        """
-
-    def _spin_style(self) -> str:
-        return """
-            QSpinBox, QDoubleSpinBox {
-                background-color: #3d3d3d; color: #cccccc;
-                border: 1px solid #555555; border-radius: 3px;
-                padding: 2px 4px; font-size: 11px; min-height: 18px;
-            }
-            QSpinBox::up-button, QDoubleSpinBox::up-button,
-            QSpinBox::down-button, QDoubleSpinBox::down-button {
-                border: none; width: 12px;
-            }
-        """
 
     # ── 预设 ──
 
@@ -553,7 +481,7 @@ class TrainDock(QWidget):
             if models_dir.exists():
                 start_dir = str(models_dir)
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择模型检查点", start_dir,
+            None, "选择模型检查点", start_dir,
             "模型文件 (*.pt *.engine *.onnx);;所有文件 (*)")
         if path:
             self._last_checkpoint_dir = str(Path(path).parent)

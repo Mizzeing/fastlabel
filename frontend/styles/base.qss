@@ -1,0 +1,57 @@
+/* ========================================
+   base.qss — 全局基础样式
+   暗色主题背景、菜单栏、状态栏、分组框
+   ======================================== */
+
+QMainWindow {
+    background-color: #1e1e1e;
+}
+
+MainWindow QMenuBar {
+    background-color: #2d2d2d;
+    color: #cccccc;
+    border-bottom: 1px solid #3d3d3d;
+    font-size: 13px;
+}
+
+MainWindow QMenuBar::item:selected {
+    background-color: #0d6efd;
+}
+
+MainWindow QMenu {
+    background-color: #2d2d2d;
+    color: #cccccc;
+    border: 1px solid #3d3d3d;
+    font-size: 13px;
+}
+
+MainWindow QMenu::item:selected {
+    background-color: #0d6efd;
+}
+
+MainWindow QMenu::separator {
+    height: 1px;
+    background-color: #3d3d3d;
+    margin: 4px 8px;
+}
+
+MainWindow QStatusBar {
+    background-color: #2d2d2d;
+    color: #aaaaaa;
+    border-top: 1px solid #3d3d3d;
+    font-size: 12px;
+}
+
+MainWindow QGroupBox {
+    color: #cccccc;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+MainWindow QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 8px;
+    padding: 0 4px;
+}

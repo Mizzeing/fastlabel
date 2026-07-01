@@ -52,6 +52,8 @@
 | **训练日志** | 实时文本日志输出 |
 | **自动类别映射** | 新模型自动匹配项目类别顺序 |
 | **训练历史** | 记录最近 20 次训练到 config.yaml |
+| **可折叠管理面板** | 项目/模型/训练三区可独立折叠收纳，节省左侧空间 |
+| **样式分离** | 前端样式从 Python 代码迁移到独立 `.qss` 文件，易于维护 |
 
 ### 后续阶段规划
 
@@ -159,16 +161,24 @@ fastlabel/
 │
 ├── frontend/                   # 前端 PyQt5 图形界面
 │   ├── main_window.py          # 主窗口 (组装所有组件)
+│   ├── styles/                 # 独立样式文件 (.qss)
+│   │   ├── __init__.py         # load_styles() 加载器
+│   │   ├── base.qss            # 全局基础：背景、菜单栏、状态栏
+│   │   ├── components.qss      # 通用控件：按钮、下拉框、滑块等
+│   │   ├── dialogs.qss         # 对话框：消息框、文件对话框
+│   │   ├── docks.qss           # 面板：项目管理、模型、训练等
+│   │   └── canvas.qss          # 画布工具栏
 │   └── widgets/
 │       ├── canvas.py           # 核心画布组件 (+ 预测框绘制)
 │       ├── image_view.py       # 图像查看器 (含工具条)
+│       ├── collapsible_section.py  # 可折叠收纳面板组件
 │       ├── project_dock.py     # 项目管理面板（统一左侧）
 │       ├── label_dock.py       # 标注列表面板
 │       ├── property_dock.py    # 属性编辑面板
 │       ├── class_dialog.py     # 类别管理对话框
 │       ├── class_mapping_dialog.py  # 模型类别映射对话框
-│       └── model_dock.py       # 模型管理面板（统一左侧）
-│       └── train_dock.py       # 🆕 训练管理面板 (第三阶段)
+│       ├── model_dock.py       # 模型管理面板
+│       └── train_dock.py       # 训练管理面板
 │
 ├── projects/                   # 项目数据存放目录
 ├── models/                     # 模型存放目录

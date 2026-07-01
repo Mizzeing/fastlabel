@@ -6,7 +6,7 @@
 from PyQt5.QtWidgets import (
     QMainWindow, QFileDialog, QMessageBox, QApplication,
     QAction, QMenu, QToolBar, QStatusBar, QLabel,
-    QDockWidget, QSplitter, QWidget, QVBoxLayout,
+    QDockWidget, QWidget, QVBoxLayout,
     QScrollArea,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
@@ -33,6 +33,7 @@ from .widgets.property_dock import PropertyDock
 from .widgets.class_dialog import ClassDialog
 from .widgets.model_dock import ModelDock
 from .widgets.train_dock import TrainDock
+from .widgets.collapsible_section import CollapsibleSection
 from backend.inference.manager import InferenceManager
 
 
@@ -66,197 +67,14 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1280, 800)
         self.resize(1400, 900)
 
-        # 全局样式
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #1e1e1e;
-            }
-            MainWindow QMenuBar {
-                background-color: #2d2d2d;
-                color: #cccccc;
-                border-bottom: 1px solid #3d3d3d;
-                font-size: 13px;
-            }
-            MainWindow QMenuBar::item:selected {
-                background-color: #0d6efd;
-            }
-            MainWindow QMenu {
-                background-color: #2d2d2d;
-                color: #cccccc;
-                border: 1px solid #3d3d3d;
-                font-size: 13px;
-            }
-            MainWindow QMenu::item:selected {
-                background-color: #0d6efd;
-            }
-            MainWindow QMenu::separator {
-                height: 1px;
-                background-color: #3d3d3d;
-                margin: 4px 8px;
-            }
-            MainWindow QStatusBar {
-                background-color: #2d2d2d;
-                color: #aaaaaa;
-                border-top: 1px solid #3d3d3d;
-                font-size: 12px;
-            }
-            MainWindow QPushButton {
-                background-color: #3d3d3d;
-                color: #cccccc;
-                border: 1px solid #555555;
-                border-radius: 4px;
-                padding: 4px 12px;
-                font-size: 12px;
-            }
-            MainWindow QPushButton:hover {
-                background-color: #4d4d4d;
-            }
-            MainWindow QPushButton:pressed {
-                background-color: #0d6efd;
-            }
-            MainWindow QPushButton:disabled {
-                background-color: #2d2d2d;
-                color: #666666;
-            }
-            MainWindow QToolButton {
-                background-color: #3d3d3d;
-                color: #cccccc;
-                border: 1px solid #555555;
-                border-radius: 3px;
-                padding: 4px 8px;
-                font-size: 11px;
-            }
-            MainWindow QToolButton:hover {
-                background-color: #4d4d4d;
-            }
-            MainWindow QToolButton:pressed {
-                background-color: #0d6efd;
-            }
-            MainWindow QToolButton:disabled {
-                background-color: #2d2d2d;
-                color: #666666;
-                border-color: #3d3d3d;
-            }
-            MainWindow QComboBox {
-                background-color: #3d3d3d;
-                color: #cccccc;
-                border: 1px solid #555555;
-                border-radius: 3px;
-                padding: 2px 4px;
-                font-size: 11px;
-                min-height: 18px;
-            }
-            MainWindow QComboBox::drop-down {
-                border: none;
-                width: 16px;
-            }
-            MainWindow QComboBox QAbstractItemView {
-                background-color: #2d2d2d;
-                color: #cccccc;
-                selection-background-color: #0d6efd;
-                font-size: 11px;
-                border: 1px solid #555555;
-                outline: none;
-            }
-            MainWindow QComboBox QAbstractItemView::item {
-                padding: 4px 8px;
-                min-height: 20px;
-            }
-            MainWindow QComboBox QAbstractItemView::item:hover {
-                background-color: #0d6efd;
-            }
-            MainWindow QLineEdit {
-                background-color: #3d3d3d;
-                color: #cccccc;
-                border: 1px solid #555555;
-                border-radius: 3px;
-                padding: 2px 6px;
-                font-size: 12px;
-            }
-            MainWindow QMessageBox {
-                background-color: #2d2d2d;
-                color: #cccccc;
-            }
-            MainWindow QMessageBox QLabel {
-                color: #cccccc;
-                font-size: 13px;
-            }
-            MainWindow QMessageBox QPushButton {
-                min-width: 80px;
-            }
-            MainWindow QDialog {
-                background-color: #2d2d2d;
-                color: #cccccc;
-            }
-            MainWindow QDialog QLabel {
-                color: #cccccc;
-            }
-            MainWindow QGroupBox {
-                color: #cccccc;
-                border: 1px solid #555555;
-                border-radius: 4px;
-                margin-top: 8px;
-                font-size: 12px;
-            }
-            MainWindow QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 8px;
-                padding: 0 4px;
-            }
-            /* 文件对话框恢复系统默认样式（覆盖前面的 MainWindow 规则） */
-            QFileDialog {
-                background: palette(window);
-                color: palette(windowText);
-            }
-            QFileDialog QLabel { color: palette(windowText); }
-            QFileDialog QComboBox,
-            QFileDialog QLineEdit,
-            QFileDialog QSpinBox,
-            QFileDialog QDoubleSpinBox {
-                background: palette(base);
-                color: palette(windowText);
-                border: 1px solid palette(mid);
-                border-radius: 2px;
-                padding: 1px 3px;
-            }
-            QFileDialog QComboBox QAbstractItemView {
-                background: palette(window);
-                color: palette(windowText);
-                selection-background-color: palette(highlight);
-                selection-color: palette(highlightedText);
-            }
-            QFileDialog QPushButton,
-            QFileDialog QToolButton {
-                background: palette(button);
-                color: palette(buttonText);
-                border: 1px solid palette(mid);
-                border-radius: 3px;
-                padding: 3px 10px;
-            }
-            QFileDialog QPushButton:hover,
-            QFileDialog QToolButton:hover {
-                background: palette(light);
-            }
-            QFileDialog QTreeView,
-            QFileDialog QListView,
-            QFileDialog QColumnView {
-                background: palette(base);
-                color: palette(windowText);
-                border: 1px solid palette(mid);
-            }
-            QFileDialog QTreeView::item:selected,
-            QFileDialog QListView::item:selected {
-                background: palette(highlight);
-                color: palette(highlightedText);
-            }
-        """)
+        # 全局样式已移至 frontend/styles/*.qss，在 main.py 中通过 load_styles() 加载
 
         # ── 中心组件: ImageView ──
         self._image_view = ImageView()
         self.setCentralWidget(self._image_view)
 
         # ── Dock Widgets ──
-        # 左侧：统一管理面板（项目管理 + 模型管理 上下布局）
+        # 左侧：统一管理面板（可折叠收纳式）
         self._left_dock = QDockWidget("管理", self)
         self._left_dock.setMinimumWidth(220)
         self._left_dock.setMaximumWidth(400)
@@ -266,68 +84,49 @@ class MainWindow(QMainWindow):
         self._train_dock = TrainDock()
 
         left_container = QWidget()
-        left_container.setStyleSheet("background-color: #1e1e1e;")
+        left_container.setObjectName("left_panel")
         left_layout = QVBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(0)
 
-        splitter = QSplitter(Qt.Vertical)
-        splitter.addWidget(self._project_dock)
-        splitter.addWidget(self._model_dock)
-        splitter.addWidget(self._train_dock)
-        splitter.setStretchFactor(0, 3)  # 项目占最多
-        splitter.setStretchFactor(1, 2)  # 模型次之
-        splitter.setStretchFactor(2, 2)  # 训练
-        left_layout.addWidget(splitter)
+        self._project_section = CollapsibleSection("📁 项目管理", self._project_dock)
+        left_layout.addWidget(self._project_section)
 
-        self._left_dock.setWidget(left_container)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self._left_dock)
+        self._model_section = CollapsibleSection("🤖 模型管理", self._model_dock, expanded=False)
+        left_layout.addWidget(self._model_section)
 
-        # 为左侧面板添加滚动条（内容可能超出可视区域）
+        self._train_section = CollapsibleSection("🏋️ 训练管理", self._train_dock, expanded=False)
+        left_layout.addWidget(self._train_section)
+
+        left_layout.addStretch()
+
         scroll = QScrollArea()
-        scroll.setWidgetResizable(False)   # 保持内容的自然大小
+        scroll.setWidgetResizable(True)
         scroll.setWidget(left_container)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        # 关键：让 QScrollArea 的视口背景透明，否则默认白色
-        scroll.viewport().setStyleSheet("background: transparent;")
+        scroll.viewport().setObjectName("scroll_viewport")
+
         scroll.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background: transparent;
-            }
+            QScrollArea { border: none; background: transparent; }
+            #scroll_viewport { background: transparent; }
             QScrollBar:vertical {
-                background: #2d2d2d;
-                width: 8px;
-                margin: 0;
-                border: none;
+                background: #2d2d2d; width: 8px; margin: 0; border: none;
             }
             QScrollBar::handle:vertical {
-                background: #555555;
-                min-height: 30px;
-                border-radius: 4px;
+                background: #555555; min-height: 30px; border-radius: 4px;
             }
-            QScrollBar::handle:vertical:hover {
-                background: #0d6efd;
-            }
-            QScrollBar::handle:vertical:pressed {
-                background: #0b5ed7;
-            }
+            QScrollBar::handle:vertical:hover { background: #0d6efd; }
+            QScrollBar::handle:vertical:pressed { background: #0b5ed7; }
             QScrollBar::sub-line:vertical,
-            QScrollBar::add-line:vertical {
-                height: 0;
-                border: none;
-            }
+            QScrollBar::add-line:vertical { height: 0; border: none; }
             QScrollBar::up-arrow:vertical,
-            QScrollBar::down-arrow:vertical {
-                border: none;
-                background: none;
-            }
+            QScrollBar::down-arrow:vertical { border: none; background: none; }
             QScrollBar::add-page:vertical,
-            QScrollBar::sub-page:vertical {
-                background: none;
-            }
+            QScrollBar::sub-page:vertical { background: none; }
         """)
+
         self._left_dock.setWidget(scroll)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self._left_dock)
 
         # 右侧：标注列表 + 属性面板（Tab 切换）
         self._label_dock = LabelDock()
@@ -634,7 +433,7 @@ class MainWindow(QMainWindow):
 
         start_dir = self._last_import_dir or str(Path.home())
         files, _ = QFileDialog.getOpenFileNames(
-            self, "选择图片",
+            None, "选择图片",
             start_dir,
             "图片文件 (*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp);;所有文件 (*)")
 
@@ -705,7 +504,7 @@ class MainWindow(QMainWindow):
 
         start_dir = self._last_yolo_dir or str(Path.home())
         label_dir = QFileDialog.getExistingDirectory(
-            self, "选择 YOLO 标签目录（包含 .txt 文件）",
+            None, "选择 YOLO 标签目录（包含 .txt 文件）",
             start_dir,
         )
         if not label_dir:

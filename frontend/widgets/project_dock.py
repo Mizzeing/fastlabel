@@ -43,15 +43,7 @@ class ProjectDock(QWidget):
 
         # ── 项目信息 ──
         self._info_label = QLabel("未打开项目")
-        self._info_label.setStyleSheet("""
-            QLabel {
-                color: #888888;
-                font-size: 12px;
-                padding: 8px;
-                background-color: #2d2d2d;
-                border-radius: 4px;
-            }
-        """)
+        self._info_label.setObjectName("project_info_label")
         self._info_label.setWordWrap(True)
         layout.addWidget(self._info_label)
 
@@ -76,18 +68,9 @@ class ProjectDock(QWidget):
         btn_layout.addWidget(self._import_btn)
 
         self._delete_btn = QPushButton("删除")
+        self._delete_btn.setObjectName("project_delete_btn")
         self._delete_btn.setToolTip("删除选中的项目（不可恢复）")
         self._delete_btn.clicked.connect(self._on_delete_project)
-        self._delete_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #6d2e2e;
-                border-color: #8d3e3e;
-                color: #ffcccc;
-            }
-            QPushButton:hover {
-                background-color: #8d3e3e;
-            }
-        """)
         btn_layout.addWidget(self._delete_btn)
 
         layout.addLayout(btn_layout)
@@ -100,35 +83,12 @@ class ProjectDock(QWidget):
         self._project_tree.itemDoubleClicked.connect(self._on_tree_item_clicked)
         self._project_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self._project_tree.customContextMenuRequested.connect(self._on_tree_context_menu)
-        self._project_tree.setStyleSheet("""
-            QTreeWidget {
-                background-color: #252526;
-                color: #cccccc;
-                border: 1px solid #3d3d3d;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QTreeWidget::item {
-                padding: 4px;
-                border-radius: 2px;
-            }
-            QTreeWidget::item:selected {
-                background-color: #0d6efd;
-                color: white;
-            }
-        """)
+        self._project_tree.setObjectName("project_tree")
         layout.addWidget(self._project_tree, 1)
 
         # ── 图片列表 ──
         img_header = QLabel("📷 图片列表")
-        img_header.setStyleSheet("""
-            QLabel {
-                color: #cccccc;
-                font-size: 12px;
-                font-weight: bold;
-                padding: 4px 0;
-            }
-        """)
+        img_header.setObjectName("project_image_header")
         layout.addWidget(img_header)
 
         self._image_list = QListWidget()
@@ -136,47 +96,15 @@ class ProjectDock(QWidget):
         self._image_list.itemDoubleClicked.connect(self._on_image_clicked)
         self._image_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self._image_list.customContextMenuRequested.connect(self._on_image_context_menu)
-        self._image_list.setStyleSheet("""
-            QListWidget {
-                background-color: #252526;
-                color: #cccccc;
-                border: 1px solid #3d3d3d;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QListWidget::item {
-                padding: 4px 8px;
-                border-radius: 2px;
-            }
-            QListWidget::item:selected {
-                background-color: #0d6efd;
-                color: white;
-            }
-            QListWidget::item:hover {
-                background-color: #2d2d3d;
-            }
-        """)
+        self._image_list.setObjectName("project_image_list")
         layout.addWidget(self._image_list, 1)
 
         # ── 进度 ──
         self._progress_bar = QProgressBar()
+        self._progress_bar.setObjectName("project_progress_bar")
         self._progress_bar.setVisible(False)
         self._progress_bar.setFixedHeight(16)
         self._progress_bar.setTextVisible(True)
-        self._progress_bar.setStyleSheet("""
-            QProgressBar {
-                background-color: #2d2d2d;
-                border: 1px solid #3d3d3d;
-                border-radius: 3px;
-                text-align: center;
-                font-size: 10px;
-                color: #cccccc;
-            }
-            QProgressBar::chunk {
-                background-color: #0d6efd;
-                border-radius: 2px;
-            }
-        """)
         layout.addWidget(self._progress_bar)
 
         self._refresh_project_list()
@@ -302,7 +230,7 @@ class ProjectDock(QWidget):
         # 首先尝试从列表中选择
         # 也可以文件对话框选择
         path = QFileDialog.getExistingDirectory(
-            self, "选择项目目录", str(pm.base_dir))
+            None, "选择项目目录", str(pm.base_dir))
         if path:
             try:
                 project = pm.open_project(path)

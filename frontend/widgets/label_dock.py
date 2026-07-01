@@ -90,27 +90,7 @@ class LabelDock(QDockWidget):
         self._list.currentRowChanged.connect(self._on_row_changed)
         self._list.setContextMenuPolicy(Qt.CustomContextMenu)
         self._list.customContextMenuRequested.connect(self._show_context_menu)
-        self._list.setStyleSheet("""
-            QListWidget {
-                background-color: #252526;
-                color: #cccccc;
-                border: 1px solid #3d3d3d;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QListWidget::item {
-                padding: 6px 8px;
-                border-radius: 3px;
-                margin: 1px 0;
-            }
-            QListWidget::item:selected {
-                background-color: #0d6efd;
-                color: white;
-            }
-            QListWidget::item:hover {
-                background-color: #333344;
-            }
-        """)
+        self._list.setObjectName("label_list")
         layout.addWidget(self._list, 1)
 
         self.setWidget(main)

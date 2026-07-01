@@ -51,34 +51,7 @@ class ImageView(QWidget):
         # ── 工具条 ──
         toolbar = QFrame()
         toolbar.setFrameShape(QFrame.StyledPanel)
-        toolbar.setStyleSheet("""
-            QFrame {
-                background-color: #2d2d2d;
-                border-bottom: 1px solid #3d3d3d;
-            }
-            QToolButton {
-                color: #cccccc;
-                background-color: transparent;
-                border: 1px solid transparent;
-                border-radius: 3px;
-                padding: 4px 8px;
-                margin: 2px;
-                font-size: 12px;
-            }
-            QToolButton:hover {
-                background-color: #3d3d3d;
-                border-color: #555555;
-            }
-            QToolButton:checked {
-                background-color: #0d6efd;
-                color: white;
-            }
-            QLabel {
-                color: #aaaaaa;
-                font-size: 12px;
-                padding: 0 8px;
-            }
-        """)
+        toolbar.setObjectName("image_toolbar")
 
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(4, 2, 4, 2)

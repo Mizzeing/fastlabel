@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import Qt
 from frontend.main_window import MainWindow
+from frontend.styles import load_styles
 
 
 def main():
@@ -47,6 +48,7 @@ def main():
     app.setStyle("Fusion")
 
     window = MainWindow()
+    window.setStyleSheet(load_styles())
     window.show()
 
     sys.exit(app.exec_())

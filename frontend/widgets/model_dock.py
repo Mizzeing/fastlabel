@@ -45,12 +45,8 @@ class ModelDock(QWidget):
 
         # ── 模型状态 ──
         self._status_label = QLabel("⚪ 模型: 未加载")
-        self._status_label.setStyleSheet("""
-            QLabel {
-                color: #aaaaaa; font-size: 12px; font-weight: bold;
-                padding: 6px; background-color: #2d2d2d; border-radius: 4px;
-            }
-        """)
+        self._status_label.setObjectName("model_status_label")
+        self._status_label.setStyleSheet("QLabel { color: #aaaaaa; background-color: #2d2d2d; }")
         layout.addWidget(self._status_label)
 
         # ── 模型路径 ──
@@ -60,13 +56,7 @@ class ModelDock(QWidget):
         self._path_label.setMinimumWidth(20)
         self._path_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self._path_label.setTextFormat(Qt.PlainText)
-        self._path_label.setStyleSheet("""
-            QLabel {
-                background-color: #3d3d3d; color: #cccccc;
-                border: 1px solid #555555; border-radius: 3px;
-                padding: 4px 6px; font-size: 11px;
-            }
-        """)
+        self._path_label.setObjectName("model_path_label")
         path_layout.addWidget(self._path_label, 1)
 
         self._browse_btn = QToolButton()
@@ -87,12 +77,7 @@ class ModelDock(QWidget):
         self._unload_btn.setToolTip("卸载当前模型释放显存")
         self._unload_btn.clicked.connect(self._on_unload_model)
         self._unload_btn.setEnabled(False)
-        self._unload_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #5d2d2d; border-color: #7d3d3d; color: #ffcccc;
-            }
-            QPushButton:hover { background-color: #7d3d3d; }
-        """)
+        self._unload_btn.setObjectName("model_unload_btn")
         btn_layout.addWidget(self._unload_btn)
         layout.addLayout(btn_layout)
 
@@ -108,28 +93,7 @@ class ModelDock(QWidget):
         self._threshold_slider.setRange(5, 95)      # 0.05 ~ 0.95
         self._threshold_slider.setValue(25)          # 默认 0.25
         self._threshold_slider.valueChanged.connect(self._on_threshold_changed)
-        self._threshold_slider.setStyleSheet("""
-            QSlider::groove:horizontal {
-                border: 1px solid #555555;
-                height: 6px;
-                background: #3d3d3d;
-                border-radius: 3px;
-            }
-            QSlider::handle:horizontal {
-                background: #0d6efd;
-                border: 1px solid #0d6efd;
-                width: 14px;
-                height: 14px;
-                margin: -5px 0;
-                border-radius: 7px;
-            }
-            QSlider::sub-page:horizontal {
-                background: #0d6efd;
-                border: 1px solid #555555;
-                height: 6px;
-                border-radius: 3px;
-            }
-        """)
+        self._threshold_slider.setObjectName("model_threshold_slider")
         threshold_layout.addWidget(self._threshold_slider, 1)
 
         self._threshold_label = QLabel("0.25")
@@ -159,14 +123,7 @@ class ModelDock(QWidget):
         self._auto_btn.setToolTip("使用模型自动检测当前图片 (Enter 接受)")
         self._auto_btn.clicked.connect(self.auto_label_requested.emit)
         self._auto_btn.setEnabled(False)
-        self._auto_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #0d6efd; color: white; font-weight: bold;
-                border: none; border-radius: 4px; padding: 8px 12px;
-            }
-            QPushButton:hover { background-color: #0b5ed7; }
-            QPushButton:disabled { background-color: #3d3d3d; color: #888888; }
-        """)
+        self._auto_btn.setObjectName("model_auto_btn")
         layout.addWidget(self._auto_btn)
 
         self._batch_btn = QPushButton("📦 批量标注所有图片")
@@ -221,12 +178,7 @@ class ModelDock(QWidget):
         self._model_loaded = loaded
         if loaded:
             self._status_label.setText(f"🟢 模型: {name}")
-            self._status_label.setStyleSheet("""
-                QLabel {
-                    color: #00cc66; font-size: 12px; font-weight: bold;
-                    padding: 6px; background-color: #1d3d1d; border-radius: 4px;
-                }
-            """)
+            self._status_label.setStyleSheet("QLabel { color: #00cc66; background-color: #1d3d1d; }")
             self._load_btn.setEnabled(False)
             self._unload_btn.setEnabled(True)
             self._auto_btn.setEnabled(True)
@@ -234,12 +186,7 @@ class ModelDock(QWidget):
             self._mapping_btn.setEnabled(True)
         else:
             self._status_label.setText("⚪ 模型: 未加载")
-            self._status_label.setStyleSheet("""
-                QLabel {
-                    color: #aaaaaa; font-size: 12px; font-weight: bold;
-                    padding: 6px; background-color: #2d2d2d; border-radius: 4px;
-                }
-            """)
+            self._status_label.setStyleSheet("QLabel { color: #aaaaaa; background-color: #2d2d2d; }")
             self._load_btn.setEnabled(True)
             self._unload_btn.setEnabled(False)
             self._auto_btn.setEnabled(False)
@@ -295,7 +242,7 @@ class ModelDock(QWidget):
     def _on_browse_model(self):
         """选择模型文件"""
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择模型文件", self._last_browse_dir,
+            None, "选择模型文件", self._last_browse_dir,
             "模型文件 (*.pt *.engine *.onnx);;所有文件 (*)")
         if path:
             self._last_browse_dir = str(Path(path).parent)

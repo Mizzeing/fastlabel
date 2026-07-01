@@ -41,34 +41,12 @@ class PropertyDock(QDockWidget):
 
         # ── 标注 ID ──
         self._id_label = QLabel("未选中")
-        self._id_label.setStyleSheet("""
-            QLabel {
-                color: #aaaaaa;
-                font-size: 11px;
-                padding: 4px;
-                background-color: #2d2d2d;
-                border-radius: 3px;
-            }
-        """)
+        self._id_label.setObjectName("property_id_label")
         layout.addWidget(self._id_label)
 
         # ── 位置属性 ──
         pos_group = QGroupBox("位置（归一化）")
-        pos_group.setStyleSheet("""
-            QGroupBox {
-                color: #cccccc;
-                font-weight: bold;
-                border: 1px solid #3d3d3d;
-                border-radius: 4px;
-                margin-top: 8px;
-                padding-top: 16px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 8px;
-                padding: 0 4px;
-            }
-        """)
+        pos_group.setObjectName("property_pos_group")
         pos_layout = QFormLayout(pos_group)
         pos_layout.setSpacing(4)
 
@@ -104,7 +82,7 @@ class PropertyDock(QDockWidget):
 
         # ── 类别 ──
         class_group = QGroupBox("类别")
-        class_group.setStyleSheet(pos_group.styleSheet())
+        class_group.setObjectName("property_pos_group")
         class_layout = QVBoxLayout(class_group)
         class_layout.setSpacing(4)
 

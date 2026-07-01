@@ -37,6 +37,8 @@ def main():
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    # 使用 Qt 非原生文件对话框（让样式表生效，避免黑底黑字）
+    QApplication.setAttribute(Qt.AA_DontUseNativeDialogs, True)
 
     app = QApplication(sys.argv)
     app.setApplicationName("FastLabel")

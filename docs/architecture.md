@@ -118,9 +118,11 @@ main.py
         ├── LabelDock ──→ AnnotationManager
         ├── PropertyDock ──→ AnnotationManager
         ├── ClassDialog ──→ Project.config
-        └── DatasetManager
-              ├── ImageLoader
-              └── LabelLoader
+        ├── DatasetManager
+        │     ├── ImageLoader
+        │     └── LabelLoader
+        └── TrainDock ──→ YOLOTrainer ──→ Project (export dataset)
+                            └── ultralytics YOLO (training engine)
 ```
 
 ## 命令模式详解

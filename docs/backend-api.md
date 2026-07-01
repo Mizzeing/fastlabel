@@ -201,6 +201,57 @@ YOLO 格式导出器。
 
 ---
 
+## `backend.train` — 训练模块
+
+### TrainingConfig
+YOLO 训练超参数配置（dataclass）。
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| model_arch | yolov8n.pt | 模型架构或权重路径 |
+| epochs | 100 | 训练轮数 |
+| batch | 16 | 批次大小 |
+| imgsz | 640 | 输入图片尺寸 |
+| device | '' | 计算设备 (auto/cpu/0) |
+| optimizer | auto | 优化器 (SGD/Adam/AdamW/auto) |
+| lr0 | 0.01 | 初始学习率 |
+| patience | 50 | Early stopping 耐心值 |
+| augment | True | 数据增强 |
+| split | 0.9 | 训练集比例 |
+| resume_from | '' | 增量训练检查点路径 |
+
+**方法:**
+| 方法 | 说明 |
+|------|------|
+| `to_dict()` | 序列化为 dict |
+| `from_dict(data)` | 从 dict 创建（类方法） |
+| `to_ultralytics_kwargs()` | 转换为 YOLO model.train() 参数 |
+
+### YOLOTrainer
+核心训练逻辑，通过回调与 UI 通信。
+
+| 方法 | 说明 |
+|------|------|
+| `export_dataset()` | 导出标注为 YOLO 训练格式，返回 data.yaml 路径 |
+| `train(data_yaml, callbacks)` | 启动训练（阻塞），返回最佳模型路径 |
+| `stop()` | 请求停止训练 |
+
+### TrainingProgress
+训练进度快照（通过回调传递给 UI）。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| epoch | int | 当前轮数 |
+| total_epochs | int | 总轮数 |
+| loss | float | 损失值 |
+| mAP50 | float | mAP@0.5 |
+| mAP50_95 | float | mAP@0.5:0.95 |
+| precision/recall | float | 精确率/召回率 |
+| current_lr | float | 当前学习率 |
+| time_elapsed/remaining | float | 已用/剩余时间（秒）|
+
+---
+
 ## `backend.inference` — 推理模块
 
 ### BasePredictor (ABC)

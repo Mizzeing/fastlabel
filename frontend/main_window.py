@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
     QMainWindow, QFileDialog, QMessageBox, QApplication,
     QAction, QMenu, QToolBar, QStatusBar, QLabel,
     QDockWidget, QSplitter, QWidget, QVBoxLayout,
+    QScrollArea,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from PyQt5.QtGui import QKeySequence, QFont, QIcon, QPixmap
@@ -31,6 +32,7 @@ from .widgets.label_dock import LabelDock
 from .widgets.property_dock import PropertyDock
 from .widgets.class_dialog import ClassDialog
 from .widgets.model_dock import ModelDock
+from .widgets.train_dock import TrainDock
 from backend.inference.manager import InferenceManager
 
 
@@ -116,6 +118,125 @@ class MainWindow(QMainWindow):
                 background-color: #2d2d2d;
                 color: #666666;
             }
+            QToolButton {
+                background-color: #3d3d3d;
+                color: #cccccc;
+                border: 1px solid #555555;
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+            QToolButton:hover {
+                background-color: #4d4d4d;
+            }
+            QToolButton:pressed {
+                background-color: #0d6efd;
+            }
+            QToolButton:disabled {
+                background-color: #2d2d2d;
+                color: #666666;
+                border-color: #3d3d3d;
+            }
+            QComboBox {
+                background-color: #3d3d3d;
+                color: #cccccc;
+                border: 1px solid #555555;
+                border-radius: 3px;
+                padding: 2px 4px;
+                font-size: 11px;
+                min-height: 18px;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 16px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2d2d2d;
+                color: #cccccc;
+                selection-background-color: #0d6efd;
+                font-size: 11px;
+                border: 1px solid #555555;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 4px 8px;
+                min-height: 20px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #0d6efd;
+            }
+            QLineEdit {
+                background-color: #3d3d3d;
+                color: #cccccc;
+                border: 1px solid #555555;
+                border-radius: 3px;
+                padding: 2px 6px;
+                font-size: 12px;
+            }
+            QMessageBox {
+                background-color: #2d2d2d;
+                color: #cccccc;
+            }
+            QMessageBox QLabel {
+                color: #cccccc;
+                font-size: 13px;
+            }
+            QMessageBox QPushButton {
+                min-width: 80px;
+            }
+            QDialog {
+                background-color: #2d2d2d;
+                color: #cccccc;
+            }
+            QDialog QLabel {
+                color: #cccccc;
+            }
+            QGroupBox {
+                color: #cccccc;
+                border: 1px solid #555555;
+                border-radius: 4px;
+                margin-top: 8px;
+                font-size: 12px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 8px;
+                padding: 0 4px;
+            }
+            /* 文件选择对话框 */
+            QFileDialog {
+                background-color: #2d2d2d;
+                color: #cccccc;
+            }
+            QFileDialog QLabel {
+                color: #cccccc;
+            }
+            QFileDialog QTreeView,
+            QFileDialog QListView,
+            QFileDialog QColumnView {
+                background-color: #3d3d3d;
+                color: #cccccc;
+                border: 1px solid #555555;
+            }
+            QFileDialog QTreeView::item:selected,
+            QFileDialog QListView::item:selected {
+                background-color: #0d6efd;
+                color: white;
+            }
+            QFileDialog QComboBox {
+                background-color: #3d3d3d;
+                color: #cccccc;
+                border: 1px solid #555555;
+                padding: 2px 4px;
+            }
+            QFileDialog QComboBox QAbstractItemView {
+                background-color: #2d2d2d;
+                color: #cccccc;
+                selection-background-color: #0d6efd;
+            }
+            QFileDialog QPushButton {
+                min-width: 60px;
+            }
         """)
 
         # ── 中心组件: ImageView ──
@@ -130,8 +251,10 @@ class MainWindow(QMainWindow):
 
         self._project_dock = ProjectDock()
         self._model_dock = ModelDock()
+        self._train_dock = TrainDock()
 
         left_container = QWidget()
+        left_container.setStyleSheet("background-color: #1e1e1e;")
         left_layout = QVBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(0)
@@ -139,12 +262,60 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Vertical)
         splitter.addWidget(self._project_dock)
         splitter.addWidget(self._model_dock)
-        splitter.setStretchFactor(0, 3)  # 项目占更多空间
-        splitter.setStretchFactor(1, 2)
+        splitter.addWidget(self._train_dock)
+        splitter.setStretchFactor(0, 3)  # 项目占最多
+        splitter.setStretchFactor(1, 2)  # 模型次之
+        splitter.setStretchFactor(2, 2)  # 训练
         left_layout.addWidget(splitter)
 
         self._left_dock.setWidget(left_container)
         self.addDockWidget(Qt.LeftDockWidgetArea, self._left_dock)
+
+        # 为左侧面板添加滚动条（内容可能超出可视区域）
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(False)   # 保持内容的自然大小
+        scroll.setWidget(left_container)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # 关键：让 QScrollArea 的视口背景透明，否则默认白色
+        scroll.viewport().setStyleSheet("background: transparent;")
+        scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                background: #2d2d2d;
+                width: 8px;
+                margin: 0;
+                border: none;
+            }
+            QScrollBar::handle:vertical {
+                background: #555555;
+                min-height: 30px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #0d6efd;
+            }
+            QScrollBar::handle:vertical:pressed {
+                background: #0b5ed7;
+            }
+            QScrollBar::sub-line:vertical,
+            QScrollBar::add-line:vertical {
+                height: 0;
+                border: none;
+            }
+            QScrollBar::up-arrow:vertical,
+            QScrollBar::down-arrow:vertical {
+                border: none;
+                background: none;
+            }
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {
+                background: none;
+            }
+        """)
+        self._left_dock.setWidget(scroll)
 
         # 右侧：标注列表 + 属性面板（Tab 切换）
         self._label_dock = LabelDock()
@@ -259,6 +430,28 @@ class MainWindow(QMainWindow):
             lambda: self._image_view.set_mode(Mode.DRAW))
         annotate_menu.addAction(draw_mode_action)
 
+        # ── 训练 ──
+        train_menu = menubar.addMenu("训练(&T)")
+
+        start_train_action = QAction("开始训练...", self)
+        start_train_action.setShortcut(QKeySequence("Ctrl+T"))
+        start_train_action.triggered.connect(self._on_show_train_dock)
+        start_train_action.setEnabled(True)
+        train_menu.addAction(start_train_action)
+
+        open_model_dir_action = QAction("打开模型目录", self)
+        open_model_dir_action.triggered.connect(self._on_open_model_dir)
+        train_menu.addAction(open_model_dir_action)
+
+        train_menu.addSeparator()
+
+        auto_load_action = QAction("训练后自动加载模型", self)
+        auto_load_action.setCheckable(True)
+        auto_load_action.setChecked(True)
+        auto_load_action.triggered.connect(
+            lambda checked: self._train_dock._auto_load_cb.setChecked(checked))
+        train_menu.addAction(auto_load_action)
+
         # ── 视图 ──
         view_menu = menubar.addMenu("视图(&V)")
 
@@ -349,6 +542,10 @@ class MainWindow(QMainWindow):
         self._model_dock.conf_threshold_changed.connect(self._on_conf_threshold)
         self._model_dock.class_mapping_requested.connect(self._on_class_mapping)
 
+        # TrainDock
+        self._train_dock.load_model_requested.connect(self._on_load_model)
+        self._train_dock.training_finished.connect(self._on_training_finished)
+
         # AnnotationManager
         self._annotation_manager.set_on_change(self._on_annotations_updated)
         self._annotation_manager.set_on_select_change(
@@ -383,6 +580,7 @@ class MainWindow(QMainWindow):
             self._project_dock.select_image(0)
 
         self._sync_classes()
+        self._train_dock.set_project(project)
         self._update_title()
         self._update_ui_state()
         self._status(f"已打开项目: {project.name}")
@@ -408,6 +606,7 @@ class MainWindow(QMainWindow):
             self._annotation_manager.clear()
             self._current_image_id = None
             self._project_dock.set_project(None)
+            self._train_dock.reset()
             self._update_title()
             self._update_ui_state()
             self._status("项目已关闭")
@@ -680,9 +879,11 @@ class MainWindow(QMainWindow):
         self._label_dock.set_annotations(
             self._annotation_manager.annotations)
 
-        # 更新 Undo/Redo 状态
+        # 更新 Undo/Redo 和训练统计
         self._undo_action.setEnabled(self._annotation_manager.can_undo())
         self._redo_action.setEnabled(self._annotation_manager.can_redo())
+        if self._project:
+            self._train_dock.update_stats()
 
     def _on_selection_updated(self):
         """选中状态更新（支持多选）"""
@@ -829,6 +1030,49 @@ class MainWindow(QMainWindow):
             self._model_dock.set_mapping_status(
                 True, f"{len(mapping)}/{len(model_names)} 个映射")
             self._status(f"类别映射已保存: {len(mapping)} 个映射")
+
+    # ══════════════════════════════════════
+    # 训练闭环
+    # ══════════════════════════════════════
+
+    def _on_training_finished(self, success: bool):
+        """训练完成回调"""
+        if success and self._project:
+            self._status("训练完成！模型已保存。")
+            # 刷新训练面板统计数据
+            self._train_dock.update_stats()
+
+            # 自动配置类别映射：训练后的模型输出索引按项目类别顺序排列
+            classes = self._project.get_classes()
+            if classes:
+                mapping = {str(i): c['name'] for i, c in enumerate(classes)}
+                self._project.config.set('model_class_map', mapping)
+                self._model_dock.set_mapping_status(
+                    True, f"{len(mapping)} 个映射 (自动)")
+                self._status("训练完成！类别映射已自动配置。")
+        else:
+            self._status("训练未完成")
+
+    def _on_show_train_dock(self):
+        """聚焦训练面板"""
+        self._left_dock.show()
+        self._left_dock.raise_()
+        self._status("在左侧管理面板下方配置训练参数")
+
+    def _on_open_model_dir(self):
+        """打开模型目录"""
+        if not self._project:
+            QMessageBox.warning(self, "提示", "请先打开一个项目")
+            return
+        model_dir = self._project.path / 'models'
+        if not model_dir.exists():
+            model_dir.mkdir(parents=True, exist_ok=True)
+        # 尝试用系统文件管理器打开
+        import subprocess
+        try:
+            subprocess.Popen(['xdg-open', str(model_dir)])
+        except Exception:
+            self._status(f"模型目录: {model_dir}")
 
     def _ensure_prediction_classes(self, predictions):
         """确保预测类别映射正确

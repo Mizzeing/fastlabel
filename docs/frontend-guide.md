@@ -163,6 +163,39 @@ conf_threshold_changed(value)   → MainWindow._on_conf_threshold
 → 自动保存到项目数据库
 ```
 
+## TrainDock 面板
+
+训练管理面板（位于左侧面板最下方），用于 YOLO 模型训练。
+
+### 功能
+- 数据集统计概览（图片数/已标注数/类别数）
+- 训练参数配置：预设方案（快速/标准/精度优先）或自定义
+- 架构选择（yolov8n/s/m/l/x, yolo11n/s/m/l/x）
+- 增量训练：从已有检查点继续训练
+- 高级参数：优化器、学习率、早停耐心、数据增强、训练集比例
+- 开始/停止训练
+- 实时进度条 + 指标展示（Loss, mAP50, mAP50-95, LR, 时间）
+- 训练日志实时输出
+- 训练完成后自动加载模型
+
+### 信号
+```
+training_started()              → MainWindow 更新 UI
+training_finished(success)      → MainWindow 自动配置类别映射
+load_model_requested(path)      → MainWindow._on_load_model
+```
+
+### 训练工作流
+```
+用户点「🚀 开始训练」
+  → 主线程导出标注数据（SQLite 安全）
+  → QThread 后台运行 YOLO 训练
+  → 每轮回调更新 UI 进度
+  → 训练完成 → 模型保存到 projects/<name>/models/best.pt
+  → 自动配置类别映射
+  → 可选：自动加载模型到推理引擎
+```
+
 ## 添加新 DockWidget
 
 1. 在 `frontend/widgets/` 下创建新文件

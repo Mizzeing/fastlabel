@@ -147,11 +147,11 @@ fastlabel/
 │   │   ├── base.py             # BasePredictor 抽象基类
 │   │   ├── yolo_predictor.py   # YOLO 预测器实现
 │   │   └── manager.py          # 推理管理器
-    │   │
-    ├── train/                  # 🆕 训练模块 (第三阶段)
-    │   ├── __init__.py         # 入口
-    │   ├── config.py           # TrainingConfig 训练超参数
-    │   └── trainer.py          # YOLOTrainer 训练核心
+│   │
+│   ├── train/                  # 🆕 训练模块 (第三阶段)
+│   │   ├── __init__.py         # 入口
+│   │   ├── config.py           # TrainingConfig 训练超参数
+│   │   └── trainer.py          # YOLOTrainer 训练核心
 │   │
 │   ├── export/                 # 导出模块
 │   │   └── yolo.py             # YOLO 格式导出

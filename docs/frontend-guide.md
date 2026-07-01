@@ -126,6 +126,7 @@ ModelDock.batch_label_requested ──────────→ MainWindow._on
 ModelDock.accept_all_requested ───────────→ MainWindow._on_accept_all
 ModelDock.reject_all_requested ───────────→ MainWindow._on_reject_all
 ModelDock.conf_threshold_changed ─────────→ MainWindow._on_conf_threshold
+ModelDock.iou_threshold_changed ──────────→ MainWindow._on_iou_threshold
 
 AnnotationManager.on_change ──────────────→ MainWindow._on_annotations_updated
 AnnotationManager.on_select_change ───────→ MainWindow._on_selection_updated
@@ -140,9 +141,10 @@ AnnotationManager.on_predictions_change ──→ MainWindow._on_predictions_upd
 - 选择并加载 .pt 模型文件（路径自动持久化到 config.yaml）
 - 卸载模型释放显存
 - 置信度阈值滑块 (0.05~0.95)
+- IoU 阈值滑块 (0.10~0.90)，控制 NMS 去重力度
 - 自动标注当前图片
 - 批量标注所有未标注图片
-- 全部接受 / 全部拒绝
+- 全部接受 / 全部拒绝（不按阈值过滤）
 
 ### 信号
 ```
@@ -150,9 +152,10 @@ load_model_requested(path)      → MainWindow._on_load_model
 unload_model_requested()        → MainWindow._on_unload_model
 auto_label_requested()          → MainWindow._on_auto_label
 batch_label_requested()         → MainWindow._on_batch_label
-accept_all_requested(threshold) → MainWindow._on_accept_all
-reject_all_requested(threshold) → MainWindow._on_reject_all
+accept_all_requested(0.0)        → MainWindow._on_accept_all（接受全部，不按阈值过滤）
+reject_all_requested(0.0)        → MainWindow._on_reject_all（拒绝全部）
 conf_threshold_changed(value)   → MainWindow._on_conf_threshold
+iou_threshold_changed(value)    → MainWindow._on_iou_threshold
 ```
 
 ### 预测工作流

@@ -260,7 +260,7 @@ YOLO 训练超参数配置（dataclass）。
 | 方法 | 说明 |
 |------|------|
 | `load(model_path)` | 加载模型权重 |
-| `predict(image, conf_threshold)` | 预测单张图片，返回 List[PredictionResult] |
+| `predict(image, conf_threshold, iou_threshold)` | 预测单张图片，返回 List[PredictionResult] |
 | `unload()` | 卸载模型，释放显存 |
 | `is_loaded()` | 模型是否已加载 |
 | `name` | 模型名称（属性） |
@@ -284,7 +284,8 @@ YOLO 训练超参数配置（dataclass）。
 |------|------|
 | `load_model(path, type='yolo')` | 加载模型 |
 | `unload_model()` | 卸载模型 |
-| `predict(image, conf_threshold)` | 预测 |
+| `predict(image, conf_threshold, iou_threshold)` | 预测 |
 | `predict_and_filter(image)` | 预测+过滤 |
-| `conf_threshold` | 置信度阈值（属性） |
+| `conf_threshold` | 置信度阈值（属性，0~1） |
+| `iou_threshold` | NMS IoU 阈值（属性，0~1） |
 | `is_loaded` | 模型是否已加载（属性） |

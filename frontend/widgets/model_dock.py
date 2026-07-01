@@ -302,9 +302,9 @@ class ModelDock(QWidget):
         return self._iou_slider.value() / 100.0
 
     def _on_accept_all(self):
-        """接受全部"""
-        self.accept_all_requested.emit(self.get_threshold())
+        """接受全部预测（不按阈值过滤）"""
+        self.accept_all_requested.emit(0.0)
 
     def _on_reject_all(self):
-        """拒绝全部"""
-        self.reject_all_requested.emit(self.get_threshold())
+        """拒绝全部预测（不按阈值过滤）"""
+        self.reject_all_requested.emit(0.0)

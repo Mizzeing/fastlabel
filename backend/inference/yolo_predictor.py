@@ -42,12 +42,14 @@ class YOLOPredictor(BasePredictor):
         self._class_names = list(self._model.names.values())
 
     def predict(self, image: np.ndarray,
-                conf_threshold: float = 0.25) -> List[PredictionResult]:
+                conf_threshold: float = 0.25,
+                iou_threshold: float = 0.45) -> List[PredictionResult]:
         """执行 YOLO 预测
 
         Args:
             image: RGB 图像 (H, W, 3)
-            conf_threshold: 置信度阈值
+            conf_threshold: 置信度阈值 (0~1)
+            iou_threshold: NMS IoU 阈值 (0~1)
 
         Returns:
             PredictionResult 列表（归一化坐标）
@@ -56,7 +58,8 @@ class YOLOPredictor(BasePredictor):
             raise RuntimeError("模型未加载，请先调用 load()")
 
         img_h, img_w = image.shape[:2]
-        results = self._model(image, verbose=False, conf=conf_threshold)
+        results = self._model(image, verbose=False,
+                              conf=conf_threshold, iou=iou_threshold)
 
         if len(results) == 0:
             return []

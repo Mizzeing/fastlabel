@@ -64,12 +64,14 @@ class BasePredictor(ABC):
 
     @abstractmethod
     def predict(self, image: np.ndarray,
-                conf_threshold: float = 0.25) -> List[PredictionResult]:
+                conf_threshold: float = 0.25,
+                iou_threshold: float = 0.45) -> List[PredictionResult]:
         """对单张图片进行预测
 
         Args:
             image: RGB 图像 numpy 数组 (H, W, 3)
-            conf_threshold: 置信度阈值
+            conf_threshold: 置信度阈值 (0~1)
+            iou_threshold: NMS IoU 阈值 (0~1)
 
         Returns:
             PredictionResult 列表

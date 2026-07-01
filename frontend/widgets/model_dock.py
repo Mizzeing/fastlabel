@@ -25,6 +25,7 @@ class ModelDock(QWidget):
     accept_all_requested = pyqtSignal(float)            # 全部接受（带阈值）
     reject_all_requested = pyqtSignal(float)            # 全部拒绝
     conf_threshold_changed = pyqtSignal(float)          # 置信度阈值变化
+    iou_threshold_changed = pyqtSignal(float)           # IoU 阈值变化
     class_mapping_requested = pyqtSignal()              # 配置类别映射
 
     def __init__(self, parent=None):
@@ -101,6 +102,25 @@ class ModelDock(QWidget):
         self._threshold_label.setStyleSheet("color: #00ccff; font-weight: bold;")
         threshold_layout.addWidget(self._threshold_label)
         layout.addLayout(threshold_layout)
+
+        # ── IoU 阈值 ──
+        iou_layout = QHBoxLayout()
+        iou_label = QLabel("IoU 阈值")
+        iou_label.setStyleSheet("color: #cccccc; font-size: 11px;")
+        iou_layout.addWidget(iou_label)
+
+        self._iou_slider = QSlider(Qt.Horizontal)
+        self._iou_slider.setRange(10, 90)       # 0.10 ~ 0.90
+        self._iou_slider.setValue(45)            # 默认 0.45
+        self._iou_slider.valueChanged.connect(self._on_iou_changed)
+        self._iou_slider.setObjectName("iou_slider")
+        iou_layout.addWidget(self._iou_slider, 1)
+
+        self._iou_label = QLabel("0.45")
+        self._iou_label.setFixedWidth(36)
+        self._iou_label.setStyleSheet("color: #00ccff; font-weight: bold;")
+        iou_layout.addWidget(self._iou_label)
+        layout.addLayout(iou_layout)
 
         # ── 类别映射 ──
         mapping_layout = QHBoxLayout()
@@ -270,6 +290,16 @@ class ModelDock(QWidget):
         threshold = value / 100.0
         self._threshold_label.setText(f"{threshold:.2f}")
         self.conf_threshold_changed.emit(threshold)
+
+    def _on_iou_changed(self, value: int):
+        """IoU 阈值滑块变化"""
+        threshold = value / 100.0
+        self._iou_label.setText(f"{threshold:.2f}")
+        self.iou_threshold_changed.emit(threshold)
+
+    def get_iou_threshold(self) -> float:
+        """获取当前 IoU 阈值"""
+        return self._iou_slider.value() / 100.0
 
     def _on_accept_all(self):
         """接受全部"""

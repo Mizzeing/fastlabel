@@ -351,6 +351,7 @@ class MainWindow(QMainWindow):
         self._model_dock.accept_all_requested.connect(self._on_accept_all)
         self._model_dock.reject_all_requested.connect(self._on_reject_all)
         self._model_dock.conf_threshold_changed.connect(self._on_conf_threshold)
+        self._model_dock.iou_threshold_changed.connect(self._on_iou_threshold)
         self._model_dock.class_mapping_requested.connect(self._on_class_mapping)
 
         # TrainDock
@@ -816,6 +817,10 @@ class MainWindow(QMainWindow):
     def _on_conf_threshold(self, threshold: float):
         """置信度阈值变化"""
         self._inference_manager.conf_threshold = threshold
+
+    def _on_iou_threshold(self, threshold: float):
+        """IoU 阈值变化"""
+        self._inference_manager.iou_threshold = threshold
 
     def _on_class_mapping(self):
         """配置模型类别映射"""

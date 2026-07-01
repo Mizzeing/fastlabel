@@ -25,6 +25,7 @@ class InferenceManager:
     def __init__(self):
         self._predictor: Optional[BasePredictor] = None
         self._conf_threshold: float = 0.25
+        self._iou_threshold: float = 0.45
         self._last_predictions: List[PredictionResult] = []
         self._on_predictions_changed: Optional[Callable] = None
 
@@ -54,6 +55,14 @@ class InferenceManager:
     @conf_threshold.setter
     def conf_threshold(self, value: float):
         self._conf_threshold = max(0.01, min(0.99, value))
+
+    @property
+    def iou_threshold(self) -> float:
+        return self._iou_threshold
+
+    @iou_threshold.setter
+    def iou_threshold(self, value: float):
+        self._iou_threshold = max(0.01, min(0.99, value))
 
     def load_model(self, model_path: str, model_type: str = 'yolo') -> bool:
         """加载模型
@@ -101,12 +110,14 @@ class InferenceManager:
     # ── 预测 ──
 
     def predict(self, image: np.ndarray,
-                conf_threshold: Optional[float] = None) -> List[PredictionResult]:
+                conf_threshold: Optional[float] = None,
+                iou_threshold: Optional[float] = None) -> List[PredictionResult]:
         """对单张图片进行预测
 
         Args:
             image: RGB 图像 (H, W, 3)
             conf_threshold: 可选，覆盖默认置信度阈值
+            iou_threshold: 可选，覆盖默认 IoU 阈值
 
         Returns:
             预测结果列表
@@ -114,8 +125,11 @@ class InferenceManager:
         if not self.is_loaded:
             return []
 
-        threshold = conf_threshold if conf_threshold is not None else self._conf_threshold
-        results = self._predictor.predict(image, conf_threshold=threshold)
+        conf = conf_threshold if conf_threshold is not None else self._conf_threshold
+        iou = iou_threshold if iou_threshold is not None else self._iou_threshold
+        results = self._predictor.predict(image,
+                                          conf_threshold=conf,
+                                          iou_threshold=iou)
         self._last_predictions = results
         self._notify()
         return results

@@ -13,7 +13,7 @@ from typing import Optional, Callable, List, Dict
 from datetime import datetime
 
 from ..project.project import Project
-from .config import TrainingConfig
+from .config import TrainingConfig, is_seg_model
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +101,13 @@ class YOLOTrainer:
     def export_dataset(self) -> Optional[Path]:
         """将项目标注导出为 YOLO 训练格式，生成 training_data.yaml
 
-        注意：YOLO 训练需要 5 列标签（class_id cx cy w h），
-        而 YOLOExporter 导出的是 6 列（含 score），
-        这里直接写 5 列训练格式。
+        - 检测模型 → 5 列标签（class_id cx cy w h）
+        - 分割模型 → 6+ 列标签（class_id cx cy w h [多边形坐标...]），
+          对纯 bbox 标注自动用框四角生成 4 点多边形。
         """
+        # 判断模型类型（分割模型需要导出多边形点）
+        seg_mode = is_seg_model(self.config.model_arch)
+
         # 收集有标注的图片
         all_images = self.project.get_all_images()
         annotated = [img for img in all_images if img['num_annotations'] > 0]
@@ -118,7 +121,7 @@ class YOLOTrainer:
         class_id_map = {c['id']: i for i, c in enumerate(classes)}
         nc = len(classes)
 
-        # 导出 5 列训练标签（不带 score）
+        # 导出标签
         labels_dir = self.project.path / 'labels'
         labels_dir.mkdir(parents=True, exist_ok=True)
         for img in annotated:
@@ -134,9 +137,44 @@ class YOLOTrainer:
                         continue  # 跳过无效类别
                     cx = ann['x'] + ann['width'] / 2
                     cy = ann['y'] + ann['height'] / 2
-                    # 5 列格式：yolo_index cx cy w h
-                    f.write(f"{yolo_id} {cx:.6f} {cy:.6f} "
-                            f"{ann['width']:.6f} {ann['height']:.6f}\n")
+                    if seg_mode and ann.get('type') == 'polygon' and ann.get('points'):
+                        # 分割格式：class_id cx cy w h x1_norm y1_norm x2_norm y2_norm ...
+                        try:
+                            import json as _json
+                            pts = _json.loads(ann['points'])
+                            # 注意：pts 是绝对像素坐标，需要归一化
+                            img_w = float(img.get('width', 1))
+                            img_h = float(img.get('height', 1))
+                            seg_coords = ' '.join(
+                                f"{p[0] / img_w:.6f} {p[1] / img_h:.6f}" for p in pts
+                            )
+                            f.write(f"{yolo_id} {cx:.6f} {cy:.6f} "
+                                    f"{ann['width']:.6f} {ann['height']:.6f} "
+                                    f"{seg_coords}\n")
+                        except Exception:
+                            # 点数据异常时用框四角回退
+                            x1 = ann['x']
+                            y1 = ann['y']
+                            x2 = ann['x'] + ann['width']
+                            y2 = ann['y'] + ann['height']
+                            f.write(f"{yolo_id} {cx:.6f} {cy:.6f} "
+                                    f"{ann['width']:.6f} {ann['height']:.6f} "
+                                    f"{x1:.6f} {y1:.6f} {x2:.6f} {y1:.6f} "
+                                    f"{x2:.6f} {y2:.6f} {x1:.6f} {y2:.6f}\n")
+                    elif seg_mode:
+                        # 纯 bbox 标注 + 分割模型 → 用框四角生成 4 点多边形
+                        x1 = ann['x']
+                        y1 = ann['y']
+                        x2 = ann['x'] + ann['width']
+                        y2 = ann['y'] + ann['height']
+                        f.write(f"{yolo_id} {cx:.6f} {cy:.6f} "
+                                f"{ann['width']:.6f} {ann['height']:.6f} "
+                                f"{x1:.6f} {y1:.6f} {x2:.6f} {y1:.6f} "
+                                f"{x2:.6f} {y2:.6f} {x1:.6f} {y2:.6f}\n")
+                    else:
+                        # 5 列格式：yolo_index cx cy w h
+                        f.write(f"{yolo_id} {cx:.6f} {cy:.6f} "
+                                f"{ann['width']:.6f} {ann['height']:.6f}\n")
 
         # 按比例分割训练 / 验证集
         import random
@@ -371,10 +409,30 @@ class YOLOTrainer:
                         on_log(f"📁 从本地加载: {model_path}")
                     model = YOLO(str(model_path))
                 else:
-                    # 从 ultralytics hub 下载
-                    if on_log:
-                        on_log(f"🌐 从 Ultralytics Hub 下载: {self.config.model_arch}")
-                    model = YOLO(self.config.model_arch)
+                    # 从 ultralytics hub 下载到 mostpt/ 缓存
+                    root = Path(__file__).parent.parent.parent
+                    mostpt_dir = root / 'mostpt'
+                    mostpt_dir.mkdir(parents=True, exist_ok=True)
+                    model_name = self.config.model_arch.rsplit('/', 1)[-1]
+                    local_pt = mostpt_dir / model_name
+
+                    if local_pt.exists():
+                        if on_log:
+                            on_log(f"📁 从 mostpt/ 加载: {local_pt}")
+                        model = YOLO(str(local_pt))
+                    else:
+                        if on_log:
+                            on_log(f"🌐 从 Ultralytics Hub 下载并缓存到 mostpt/: {local_pt}")
+                        model = YOLO(self.config.model_arch)
+                        # 缓存下载的文件到 mostpt/
+                        try:
+                            cache_path = Path.home() / '.cache' / 'ultralytics' / 'weights' / model_name
+                            if cache_path.exists():
+                                shutil.copy2(str(cache_path), str(local_pt))
+                                if on_log:
+                                    on_log(f"💾 已缓存: {local_pt}")
+                        except Exception:
+                            pass
 
             # 保存 trainer 引用以便外部停止
             self._trainer_ref = None

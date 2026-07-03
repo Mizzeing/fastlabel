@@ -21,7 +21,10 @@ from PyQt5.QtGui import QFont, QColor, QTextCursor
 from pathlib import Path
 from typing import Optional
 
-from backend.train.config import TrainingConfig, TRAINING_PRESETS, COMMON_ARCHES
+from backend.train.config import (
+    TrainingConfig, TRAINING_PRESETS, DET_ARCHES, SEG_ARCHES,
+    ALL_ARCHES, is_seg_model, det_to_seg_name,
+)
 from backend.train.trainer import YOLOTrainer, TrainingProgress
 
 
@@ -143,6 +146,11 @@ class TrainDock(QWidget):
         self._stats_label.setStyleSheet("color: #888888; font-size: 11px; padding: 2px 0;")
         layout.addWidget(self._stats_label)
 
+        # 模型模式状态（检测 / 分割）
+        self._seg_label = QLabel("")
+        self._seg_label.setStyleSheet("font-size: 11px; padding: 2px 0;")
+        layout.addWidget(self._seg_label)
+
         layout.addWidget(self._make_sep())
 
         # ══════════════════════════════════════
@@ -171,9 +179,9 @@ class TrainDock(QWidget):
         # 架构
         param_grid.addWidget(self._make_label("架构:"), row, 0)
         self._arch_combo = QComboBox()
-        for a in COMMON_ARCHES:
-            self._arch_combo.addItem(a)
         self._arch_combo.setEditable(True)
+        for a in ALL_ARCHES:
+            self._arch_combo.addItem(a)
         self._arch_combo.setCurrentText('yolov8n.pt')
         self._arch_combo.currentTextChanged.connect(self._mark_custom_preset)
         param_grid.addWidget(self._arch_combo, row, 1)
@@ -424,6 +432,45 @@ class TrainDock(QWidget):
         return label
 
 
+    # ── 模型列表过滤（根据标注类型） ──
+
+    def _refresh_model_list(self):
+        """根据项目标注类型刷新模型下拉列表
+
+        - 有 polygon 标注 → 只显示分割模型
+        - 只有 bbox 标注 → 显示全部模型
+        """
+        if self._project and self._project.has_polygon_annotations():
+            arches = SEG_ARCHES
+            default = 'yolov8n-seg.pt'
+            self._seg_label.setText("🟢 分割模式：使用分割模型（检测 + 掩码）")
+            self._seg_label.setStyleSheet(
+                "color: #00cc66; font-size: 11px; padding: 2px 0;")
+        else:
+            arches = ALL_ARCHES
+            default = 'yolov8n.pt'
+            self._seg_label.setText("🔵 检测模式")
+            self._seg_label.setStyleSheet(
+                "color: #88aaff; font-size: 11px; padding: 2px 0;")
+
+        current = self._arch_combo.currentText()
+        self._arch_combo.blockSignals(True)
+        self._arch_combo.clear()
+        for a in arches:
+            self._arch_combo.addItem(a)
+
+        # 保留当前选择（如果在列表里），否则切到对应模式的默认值
+        if current in arches:
+            self._arch_combo.setCurrentText(current)
+        else:
+            # 如果是检测模型名且是分割模式，尝试转换到对应分割模型
+            seg_equiv = det_to_seg_name(current)
+            if seg_equiv in arches:
+                self._arch_combo.setCurrentText(seg_equiv)
+            else:
+                self._arch_combo.setCurrentText(default)
+        self._arch_combo.blockSignals(False)
+
     # ── 预设 ──
 
     def _on_preset_changed(self, preset_name: str):
@@ -450,6 +497,16 @@ class TrainDock(QWidget):
             if w and key in preset:
                 val = preset[key]
                 if isinstance(w, QComboBox):
+                    # 如果有 polygon 标注且预设是检测模型，转为对应的分割模型
+                    if key == 'arch' and self._project and \
+                       self._project.has_polygon_annotations() and \
+                       not is_seg_model(str(val)):
+                        seg_val = det_to_seg_name(str(val))
+                        # 只在下拉列表包含时切换
+                        if seg_val in [self._arch_combo.itemText(i)
+                                       for i in range(self._arch_combo.count())]:
+                            w.setCurrentText(seg_val)
+                            continue
                     w.setCurrentText(str(val))
                 elif isinstance(w, QCheckBox):
                     w.setChecked(bool(val))
@@ -514,10 +571,21 @@ class TrainDock(QWidget):
             QMessageBox.warning(self, "提示", "项目中没有标注数据，请先标注图片")
             return
 
+        # 模型类型校验：有 polygon 标注时必须用分割模型
+        if self._project.has_polygon_annotations() and not is_seg_model(config.model_arch):
+            QMessageBox.warning(
+                self, "模型类型不匹配",
+                "该项目包含多边形（掩码）标注，需要使用分割模型（含 -seg），\n"
+                "当前选择的「{}」不支持掩码训练。\n\n"
+                "请选择 yolov8n-seg.pt 等分割模型。".format(config.model_arch)
+            )
+            return
+
+        seg_info = "分割" if is_seg_model(config.model_arch) else "检测"
         reply = QMessageBox.question(
             self, "开始训练",
             f"即将开始训练 YOLO 模型：\n"
-            f"  架构: {config.model_arch}\n"
+            f"  架构: {config.model_arch}  ({seg_info})\n"
             f"  数据集: {stats['annotated_images']}/{stats['total_images']} 张已标注\n"
             f"  类别: {stats['class_count']}\n"
             f"  轮数: {config.epochs} | 批次: {config.batch}\n\n"
@@ -766,7 +834,7 @@ class TrainDock(QWidget):
         self._set_params_enabled(has_project and not self._is_training)
 
     def set_project(self, project):
-        """设置当前项目，更新统计信息"""
+        """设置当前项目，更新统计信息和模型列表"""
         self._project = project
         if project:
             stats = project.get_stats()
@@ -776,9 +844,20 @@ class TrainDock(QWidget):
                 f"{stats['class_count']} 类别"
             )
             self._stats_label.setStyleSheet("color: #00cc66; font-size: 11px; padding: 2px 0;")
+            # 根据标注类型过滤模型列表
+            self._refresh_model_list()
         else:
             self._stats_label.setText("数据集: 请先打开项目")
             self._stats_label.setStyleSheet("color: #888888; font-size: 11px; padding: 2px 0;")
+            self._seg_label.setText("")
+            # 恢复全部模型列表
+            current = self._arch_combo.currentText()
+            self._arch_combo.blockSignals(True)
+            self._arch_combo.clear()
+            for a in ALL_ARCHES:
+                self._arch_combo.addItem(a)
+            self._arch_combo.setCurrentText(current if current in ALL_ARCHES else 'yolov8n.pt')
+            self._arch_combo.blockSignals(False)
 
         self._update_ui_state()
 
@@ -798,4 +877,5 @@ class TrainDock(QWidget):
         self._log_text.clear()
         self._stats_label.setText("数据集: 请先打开项目")
         self._stats_label.setStyleSheet("color: #888888; font-size: 11px; padding: 2px 0;")
+        self._seg_label.setText("")
         self._update_ui_state()

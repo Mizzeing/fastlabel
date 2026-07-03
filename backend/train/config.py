@@ -41,9 +41,12 @@ TRAINING_PRESETS = {
 }
 
 
-# ── 常用模型架构列表 ──
+# ── 模型架构列表 ──
 
-COMMON_ARCHES = [
+SEG_SUFFIX = '-seg'
+"""分割模型后缀，例如 yolov8n + SEG_SUFFIX → yolov8n-seg.pt"""
+
+DET_ARCHES = [
     'yolov8n.pt',   # nano
     'yolov8s.pt',   # small
     'yolov8m.pt',   # medium
@@ -55,6 +58,40 @@ COMMON_ARCHES = [
     'yolo11l.pt',   # yolo11 large
     'yolo11x.pt',   # yolo11 xlarge
 ]
+
+SEG_ARCHES = [
+    'yolov8n-seg.pt',   # nano
+    'yolov8s-seg.pt',   # small
+    'yolov8m-seg.pt',   # medium
+    'yolov8l-seg.pt',   # large
+    'yolov8x-seg.pt',   # xlarge
+    'yolo11n-seg.pt',   # yolo11 nano
+    'yolo11s-seg.pt',   # yolo11 small
+    'yolo11m-seg.pt',   # yolo11 medium
+    'yolo11l-seg.pt',   # yolo11 large
+    'yolo11x-seg.pt',   # yolo11 xlarge
+]
+
+ALL_ARCHES = DET_ARCHES + SEG_ARCHES
+"""全部可用模型架构（检测 + 分割）"""
+
+COMMON_ARCHES = ALL_ARCHES
+"""别名，兼容旧代码引用"""
+
+
+def is_seg_model(name: str) -> bool:
+    """判断模型名称是否为分割模型（名称含 -seg）"""
+    return SEG_SUFFIX in name
+
+
+def det_to_seg_name(name: str) -> str:
+    """将检测模型名转为对应的分割模型名
+    示例: yolov8n.pt → yolov8n-seg.pt, yolo11m.pt → yolo11m-seg.pt
+    """
+    if is_seg_model(name):
+        return name
+    stem = name.rsplit('.', 1)[0] if '.' in name else name
+    return f"{stem}{SEG_SUFFIX}.pt"
 
 
 @dataclass

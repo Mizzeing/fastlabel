@@ -310,6 +310,15 @@ class Project:
 
     # ── 导入/导出项目信息 ──
 
+    def has_polygon_annotations(self) -> bool:
+        """检查项目中是否有 polygon 类型的标注"""
+        try:
+            cursor = self._conn.execute(
+                "SELECT COUNT(*) as cnt FROM annotations WHERE type = 'polygon'")
+            return cursor.fetchone()['cnt'] > 0
+        except Exception:
+            return False
+
     def get_stats(self) -> Dict:
         total = self.get_image_count()
         annotated = self.get_annotated_count()

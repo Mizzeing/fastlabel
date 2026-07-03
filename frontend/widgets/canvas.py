@@ -717,7 +717,8 @@ class Canvas(QWidget):
                                 self._insert_polygon_vertex(self._selected, ei, pos)
                                 return
                             if self._selected.contains_point(
-                                    img_pos.x(), img_pos.y()):
+                                    img_pos.x() / self._image_size[0] if self._image_size[0] > 0 else 0,
+                                    img_pos.y() / self._image_size[1] if self._image_size[1] > 0 else 0):
                                 self._start_drag(pos, img_pos)
                                 return
                         # BBox 调整大小
@@ -727,7 +728,9 @@ class Canvas(QWidget):
                                 self._start_resize(pos, handle)
                                 return
                         if hasattr(self._selected, 'contains_point') and \
-                           self._selected.contains_point(img_pos.x(), img_pos.y()):
+                           self._selected.contains_point(
+                               img_pos.x() / self._image_size[0] if self._image_size[0] > 0 else 0,
+                               img_pos.y() / self._image_size[1] if self._image_size[1] > 0 else 0):
                             self._start_drag(pos, img_pos)
                             return
 
@@ -790,7 +793,8 @@ class Canvas(QWidget):
                 elif self._hit_polygon_edge(pos, self._selected) >= 0:
                     self.setCursor(QCursor(Qt.CrossCursor))
                 elif self._selected.contains_point(
-                        img_pos.x(), img_pos.y()):
+                        img_pos.x() / self._image_size[0] if self._image_size[0] > 0 else 0,
+                        img_pos.y() / self._image_size[1] if self._image_size[1] > 0 else 0):
                     self.setCursor(QCursor(Qt.SizeAllCursor))
                 else:
                     self.setCursor(QCursor(Qt.ArrowCursor))
@@ -861,7 +865,8 @@ class Canvas(QWidget):
         try:
             key = event.key()
 
-            if key == Qt.Key_Delete or key == Qt.Key_Backspace:
+            if key == Qt.Key_Delete or key == Qt.Key_Backspace or \
+               (key == Qt.Key_D and event.modifiers() & Qt.ControlModifier):
                 if self._selected:
                     if self._selected in self._predictions:
                         self.annotation_reject_requested.emit(self._selected)

@@ -9,6 +9,7 @@ from .image_loader import ImageLoader
 from .label_loader import LabelLoader
 from ..project.project import Project
 from ..annotation.bbox import BBox
+from ..annotation.polygon import Polygon
 from ..annotation.shape import Shape
 
 
@@ -191,6 +192,7 @@ class DatasetManager:
         # 按 class_id 排序，YOLO class_id → 项目类别（按位置匹配）
         classes_sorted = sorted(classes, key=lambda x: x['id'])
         from ..annotation.bbox import BBox
+        from ..annotation.polygon import Polygon
 
         shapes = []
         for r in records:
@@ -199,14 +201,24 @@ class DatasetManager:
                 continue
             proj_class = classes_sorted[yolo_cid]
 
-            bbox = BBox(
-                annotation_id=str(uuid.uuid4()),
-                class_id=proj_class['id'],
-                label=proj_class['name'],
-                x=r['x'], y=r['y'], w=r['w'], h=r['h'],
-                score=r.get('score', 1.0),
-            )
-            shapes.append(bbox)
+            if r.get('type') == 'polygon':
+                polygon = Polygon(
+                    annotation_id=str(uuid.uuid4()),
+                    class_id=proj_class['id'],
+                    label=proj_class['name'],
+                    points=[(float(x), float(y)) for x, y in r.get('points', [])],
+                    score=r.get('score', 1.0),
+                )
+                shapes.append(polygon)
+            else:
+                bbox = BBox(
+                    annotation_id=str(uuid.uuid4()),
+                    class_id=proj_class['id'],
+                    label=proj_class['name'],
+                    x=r['x'], y=r['y'], w=r['w'], h=r['h'],
+                    score=r.get('score', 1.0),
+                )
+                shapes.append(bbox)
 
         if shapes:
             self._project.save_all_annotations(image_id,
@@ -222,17 +234,36 @@ class DatasetManager:
         records = self._project.get_annotations(image_id)
         shapes = []
         for r in records:
-            bbox = BBox(
-                annotation_id=r['annotation_id'],
-                class_id=r['class_id'],
-                label=r.get('label', ''),
-                x=r['x'],
-                y=r['y'],
-                w=r['width'],
-                h=r['height'],
-                score=r['score'],
-            )
-            shapes.append(bbox)
+            ann_type = r.get('type', 'bbox')
+            if ann_type == 'polygon':
+                points_str = r.get('points', '')
+                if points_str:
+                    import json
+                    try:
+                        pts = json.loads(points_str)
+                    except (json.JSONDecodeError, TypeError):
+                        pts = []
+                else:
+                    pts = []
+                shape = Polygon(
+                    annotation_id=r['annotation_id'],
+                    class_id=r['class_id'],
+                    label=r.get('label', ''),
+                    points=[(float(p[0]), float(p[1])) for p in pts],
+                    score=r['score'],
+                )
+            else:
+                shape = BBox(
+                    annotation_id=r['annotation_id'],
+                    class_id=r['class_id'],
+                    label=r.get('label', ''),
+                    x=r['x'],
+                    y=r['y'],
+                    w=r['width'],
+                    h=r['height'],
+                    score=r['score'],
+                )
+            shapes.append(shape)
         return shapes
 
     def save_annotations(self, image_id: int, shapes: List[Shape]):
@@ -242,7 +273,7 @@ class DatasetManager:
 
         dicts = []
         for s in shapes:
-            if isinstance(s, BBox):
+            if isinstance(s, (BBox, Polygon)):
                 dicts.append(s.to_dict())
         self._project.save_all_annotations(image_id, dicts)
 
@@ -325,6 +356,8 @@ class DatasetManager:
                 continue
 
             import uuid
+            from ..annotation.polygon import Polygon
+
             shapes = []
             for r in records:
                 yolo_cid = r['class_id']
@@ -334,14 +367,24 @@ class DatasetManager:
                 if proj_class is None:
                     continue  # 跳过未知类别
 
-                bbox = BBox(
-                    annotation_id=str(uuid.uuid4()),
-                    class_id=proj_class['id'],
-                    label=label_name,
-                    x=r['x'], y=r['y'], w=r['w'], h=r['h'],
-                    score=r.get('score', 1.0),
-                )
-                shapes.append(bbox)
+                if r.get('type') == 'polygon':
+                    polygon = Polygon(
+                        annotation_id=str(uuid.uuid4()),
+                        class_id=proj_class['id'],
+                        label=label_name,
+                        points=[(float(x), float(y)) for x, y in r.get('points', [])],
+                        score=r.get('score', 1.0),
+                    )
+                    shapes.append(polygon)
+                else:
+                    bbox = BBox(
+                        annotation_id=str(uuid.uuid4()),
+                        class_id=proj_class['id'],
+                        label=label_name,
+                        x=r['x'], y=r['y'], w=r['w'], h=r['h'],
+                        score=r.get('score', 1.0),
+                    )
+                    shapes.append(bbox)
 
             if shapes:
                 self._project.save_all_annotations(img['id'],

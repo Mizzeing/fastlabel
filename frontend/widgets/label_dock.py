@@ -19,6 +19,7 @@ from typing import Optional, List, Dict, Callable
 
 from backend.annotation.shape import Shape
 from backend.annotation.bbox import BBox
+from backend.annotation.polygon import Polygon
 from backend.utils.misc import get_class_color
 
 
@@ -160,19 +161,27 @@ class LabelDock(QDockWidget):
         self._list.clear()
 
         for i, ann in enumerate(self._annotations):
+            color = QColor(get_class_color(ann.class_id))
+            label = ann.label if ann.label else f"Class {ann.class_id}"
+
             if isinstance(ann, BBox):
-                color = QColor(get_class_color(ann.class_id))
-                label = ann.label if ann.label else f"Class {ann.class_id}"
                 text = f"[{i+1}] {label}"
                 if ann.score < 1.0:
                     text += f" ({ann.score:.2f})"
                 text += f"\n  ({ann.x:.3f}, {ann.y:.3f}) {ann.w:.3f}x{ann.h:.3f}"
+            elif isinstance(ann, Polygon):
+                text = f"[{i+1}] {label} 🏁"
+                if ann.score < 1.0:
+                    text += f" ({ann.score:.2f})"
+                text += f"\n  {len(ann.points)} 个顶点"
+            else:
+                text = f"[{i+1}] {label}"
 
-                item = QListWidgetItem(text)
-                item.setForeground(QColor("#cccccc"))
-                item.setBackground(QColor(color.red(), color.green(),
-                                          color.blue(), 20))
-                self._list.addItem(item)
+            item = QListWidgetItem(text)
+            item.setForeground(QColor("#cccccc"))
+            item.setBackground(QColor(color.red(), color.green(),
+                                      color.blue(), 20))
+            self._list.addItem(item)
 
         self._count_label.setText(f"{len(self._annotations)} 个标注")
         self._delete_btn.setEnabled(len(self._annotations) > 0)
@@ -235,7 +244,7 @@ class LabelDock(QDockWidget):
 
         menu = QMenu(self)
 
-        if isinstance(ann, BBox):
+        if isinstance(ann, (BBox, Polygon)):
             # ── 修改类别子菜单 ──
             class_menu = menu.addMenu("📋 修改类别")
             for c in self._classes:

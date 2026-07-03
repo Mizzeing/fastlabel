@@ -139,6 +139,25 @@
 
 ---
 
+
+## `backend.annotation.polygon` — Polygon 多边形
+
+### Polygon(Shape)
+多边形标注，使用归一化坐标顶点列表。
+
+**属性（额外）:**
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| points | List[tuple] | 顶点列表 [(x1,y1), (x2,y2), ...] (归一化) |
+
+**方法:**
+| 方法 | 说明 |
+|------|------|
+| `get_bbox()` | 计算包围盒 (x, y, w, h) |
+| `contains_point(px, py)` | 射线法判断点是否在多边形内 |
+| `area()` | 鞋带公式计算多边形面积 |
+| `from_dict(data)` | 从字典创建 Polygon (类方法) |
+
 ## `backend.project.project` — Project
 
 ### Project
@@ -265,6 +284,15 @@ YOLO 训练超参数配置（dataclass）。
 | `is_loaded()` | 模型是否已加载 |
 | `name` | 模型名称（属性） |
 | `model_type` | 模型类型（属性） |
+
+### SegmentationPredictionResult(PredictionResult)
+分割预测结果（带多边形点）。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| points | List[tuple] | 归一化多边形顶点列表 [(x,y),...] |
+
+其他属性与 PredictionResult 相同。
 
 ### PredictionResult
 预测结果数据结构。

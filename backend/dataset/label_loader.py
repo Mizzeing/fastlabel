@@ -1,4 +1,9 @@
-"""LabelLoader - YOLO 格式标签加载与保存"""
+"""LabelLoader - YOLO 格式标签加载与保存
+
+支持：
+- YOLO 检测格式: class_id x_center y_center width height [score]
+- YOLO 分割格式: class_id x1 y1 x2 y2 ... xn yn [score]
+"""
 
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -6,21 +11,21 @@ import os
 
 
 class LabelLoader:
-    """YOLO 格式标签加载器
-
-    YOLO 格式说明:
-    - 每张图片对应一个 .txt 文件
-    - 每行: class_id x_center y_center width height
-    - 所有坐标均为归一化值 (0~1)
-    """
+    """YOLO 格式标签加载器"""
 
     @staticmethod
     def load_yolo(label_path: str) -> List[Dict]:
         """加载 YOLO 格式标签文件
 
-        返回:
-            [{'class_id': int, 'x': float, 'y': float, 'w': float, 'h': float}, ...]
-        注意: x,y 是归一化后的左上角坐标（从 center 转换而来）
+        自动检测格式：
+        - 检测格式（5 列）→ 返回 BBox 格式
+        - 分割格式（6+ 列且列数为奇数）→ 返回分割格式
+
+        Returns:
+            BBox 格式:
+                [{'class_id': int, 'x': float, 'y': float, 'w': float, 'h': float, ...}]
+            分割格式:
+                [{'class_id': int, 'type': 'polygon', 'points': [(x1,y1),...], ...}]
         """
         annotations = []
         if not os.path.exists(label_path):
@@ -32,13 +37,16 @@ class LabelLoader:
                 if not line or line.startswith('#'):
                     continue
                 parts = line.split()
-                if len(parts) >= 5:
-                    class_id = int(parts[0])
-                    cx = float(parts[1])
-                    cy = float(parts[2])
-                    w = float(parts[3])
-                    h = float(parts[4])
-                    # 中心坐标 -> 左上角坐标
+                if len(parts) < 5:
+                    continue
+
+                class_id = int(parts[0])
+                values = [float(v) for v in parts[1:]]
+
+                # 检测格式（5 列: class_id cx cy w h [score]）
+                if len(values) in (4, 5):
+                    cx, cy, w, h = values[0], values[1], values[2], values[3]
+                    score = values[4] if len(values) > 4 else 1.0
                     x = cx - w / 2
                     y = cy - h / 2
                     annotations.append({
@@ -47,8 +55,21 @@ class LabelLoader:
                         'y': y,
                         'w': w,
                         'h': h,
-                        'score': float(parts[5]) if len(parts) > 5 else 1.0,
+                        'score': score,
                     })
+                # 分割格式（6+ 列: class_id x1 y1 x2 y2 ... xn yn [score]）
+                elif len(values) >= 6 and len(values) % 2 == 0:
+                    score = values[-1] if len(values) % 2 == 1 else 1.0
+                    coords = values[:-1] if len(values) % 2 == 1 else values
+                    points = [(coords[i], coords[i + 1])
+                              for i in range(0, len(coords), 2)]
+                    annotations.append({
+                        'class_id': class_id,
+                        'type': 'polygon',
+                        'points': points,
+                        'score': score,
+                    })
+
         return annotations
 
     @staticmethod
@@ -56,17 +77,26 @@ class LabelLoader:
                   classes: List[Dict] = None):
         """保存 YOLO 格式标签文件
 
-        annotations 中的 x,y 是左上角坐标，会转换为中心坐标保存。
+        支持 BBox 和 Polygon 格式自动判断。
+        BBox 保存为检测格式: class_id cx cy w h score
+        Polygon 保存为分割格式: class_id x1 y1 x2 y2 ... xn yn score
         """
         Path(label_path).parent.mkdir(parents=True, exist_ok=True)
 
         with open(label_path, 'w') as f:
             for ann in annotations:
-                cx = ann['x'] + ann['w'] / 2
-                cy = ann['y'] + ann['h'] / 2
                 score = ann.get('score', 1.0)
-                f.write(f"{ann['class_id']} {cx:.6f} {cy:.6f} "
-                        f"{ann['w']:.6f} {ann['h']:.6f} {score:.4f}\n")
+                # Polygon 格式
+                if ann.get('type') == 'polygon' or 'points' in ann:
+                    pts = ann.get('points', [])
+                    coords = ' '.join(f"{p[0]:.6f} {p[1]:.6f}" for p in pts)
+                    f.write(f"{ann['class_id']} {coords} {score:.4f}\n")
+                else:
+                    # BBox 格式
+                    cx = ann['x'] + ann['w'] / 2
+                    cy = ann['y'] + ann['h'] / 2
+                    f.write(f"{ann['class_id']} {cx:.6f} {cy:.6f} "
+                            f"{ann['w']:.6f} {ann['h']:.6f} {score:.4f}\n")
 
     @staticmethod
     def get_label_path(image_path: str, label_dir: str) -> str:

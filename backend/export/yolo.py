@@ -50,11 +50,24 @@ class YOLOExporter:
         label_path = labels_dir / f"{img_path.stem}.txt"
         with open(label_path, 'w') as f:
             for ann in annotations:
-                # 数据库存储的是左上角坐标
-                cx = ann['x'] + ann['width'] / 2
-                cy = ann['y'] + ann['height'] / 2
-                f.write(f"{ann['class_id']} {cx:.6f} {cy:.6f} "
-                        f"{ann['width']:.6f} {ann['height']:.6f} {ann['score']:.4f}\n")
+                ann_type = ann.get('type', 'bbox')
+                if ann_type == 'polygon':
+                    points_str = ann.get('points', '')
+                    if points_str:
+                        import json
+                        try:
+                            pts = json.loads(points_str)
+                        except (json.JSONDecodeError, TypeError):
+                            pts = []
+                    else:
+                        pts = []
+                    coords = ' '.join(f"{p[0]:.6f} {p[1]:.6f}" for p in pts)
+                    f.write(f"{ann['class_id']} {coords} {ann['score']:.4f}\n")
+                else:
+                    cx = ann['x'] + ann['width'] / 2
+                    cy = ann['y'] + ann['height'] / 2
+                    f.write(f"{ann['class_id']} {cx:.6f} {cy:.6f} "
+                            f"{ann['width']:.6f} {ann['height']:.6f} {ann['score']:.4f}\n")
 
     def _export_data_yaml(self):
         """生成 YOLO data.yaml 配置文件"""

@@ -22,6 +22,7 @@ from backend.dataset.manager import DatasetManager
 from backend.annotation.manager import AnnotationManager
 from backend.annotation.shape import Shape
 from backend.annotation.bbox import BBox
+from backend.annotation.polygon import Polygon
 from backend.export.yolo import YOLOExporter
 from backend.utils.misc import DEFAULT_SHORTCUTS
 
@@ -236,10 +237,15 @@ class MainWindow(QMainWindow):
             lambda: self._image_view.set_mode(Mode.SELECT))
         annotate_menu.addAction(select_mode_action)
 
-        draw_mode_action = QAction("绘制模式 (W)", self)
+        draw_mode_action = QAction("绘制 BBox (W)", self)
         draw_mode_action.triggered.connect(
             lambda: self._image_view.set_mode(Mode.DRAW))
         annotate_menu.addAction(draw_mode_action)
+
+        polygon_mode_action = QAction("绘制多边形 (P)", self)
+        polygon_mode_action.triggered.connect(
+            lambda: self._image_view.set_mode(Mode.DRAW_POLYGON))
+        annotate_menu.addAction(polygon_mode_action)
 
         # ── 训练 ──
         train_menu = menubar.addMenu("训练(&T)")
@@ -620,7 +626,7 @@ class MainWindow(QMainWindow):
 
     def _on_annotation_added(self, shape: Shape):
         """添加标注"""
-        if isinstance(shape, BBox) and self._current_image_id is not None:
+        if isinstance(shape, (BBox, Polygon)) and self._current_image_id is not None:
             # 设置当前类别
             class_id = self._label_dock.get_current_class_id()
             classes = self._project.get_classes() if self._project else []
@@ -639,7 +645,8 @@ class MainWindow(QMainWindow):
             self._label_dock.set_annotations(
                 self._annotation_manager.annotations)
             self._on_annotations_updated()
-            self._status(f"添加标注: {label}")
+            type_str = "多边形" if isinstance(shape, Polygon) else "标注"
+            self._status(f"添加{type_str}: {label}")
 
     def _on_annotation_selected(self, shape: Optional[Shape]):
         """选中标注（来自 Canvas）"""
@@ -964,20 +971,31 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "预测失败", str(e))
             return
 
-        # 将预测结果转为 BBox
+        # 将预测结果转为 Shape 对象（BBox 或 Polygon）
         from backend.annotation.bbox import BBox
+        from backend.annotation.polygon import Polygon
+        from backend.inference.base import SegmentationPredictionResult
         predictions = []
         for r in results:
-            bbox = BBox(
-                class_id=r.class_id,
-                label=r.label,
-                x=r.x,
-                y=r.y,
-                w=r.w,
-                h=r.h,
-                score=r.score,
-            )
-            predictions.append(bbox)
+            if isinstance(r, SegmentationPredictionResult) and r.points:
+                polygon = Polygon(
+                    class_id=r.class_id,
+                    label=r.label,
+                    points=[(x, y) for x, y in r.points],
+                    score=r.score,
+                )
+                predictions.append(polygon)
+            else:
+                bbox = BBox(
+                    class_id=r.class_id,
+                    label=r.label,
+                    x=r.x,
+                    y=r.y,
+                    w=r.w,
+                    h=r.h,
+                    score=r.score,
+                )
+                predictions.append(bbox)
 
         # 确保类别存在（自动添加 YOLO 预测的类别到项目）
         self._ensure_prediction_classes(predictions)
@@ -1025,6 +1043,8 @@ class MainWindow(QMainWindow):
                 continue
 
             from backend.annotation.bbox import BBox
+            from backend.annotation.polygon import Polygon
+            from backend.inference.base import SegmentationPredictionResult
             predictions = []
             for r in results:
                 # 按映射修正类别
@@ -1043,13 +1063,22 @@ class MainWindow(QMainWindow):
                     label = r.label
                     class_id = actual_id
 
-                bbox = BBox(
-                    class_id=class_id,
-                    label=label,
-                    x=r.x, y=r.y, w=r.w, h=r.h,
-                    score=r.score,
-                )
-                predictions.append(bbox)
+                if isinstance(r, SegmentationPredictionResult) and r.points:
+                    polygon = Polygon(
+                        class_id=class_id,
+                        label=label,
+                        points=[(x, y) for x, y in r.points],
+                        score=r.score,
+                    )
+                    predictions.append(polygon)
+                else:
+                    bbox = BBox(
+                        class_id=class_id,
+                        label=label,
+                        x=r.x, y=r.y, w=r.w, h=r.h,
+                        score=r.score,
+                    )
+                    predictions.append(bbox)
 
             if predictions:
                 self._project.save_all_annotations(img['id'],
@@ -1141,7 +1170,8 @@ class MainWindow(QMainWindow):
         """模式切换"""
         mode_names = {
             Mode.SELECT: "选择",
-            Mode.DRAW: "绘制",
+            Mode.DRAW: "绘制BBox",
+            Mode.DRAW_POLYGON: "绘制多边形",
             Mode.PAN: "平移",
         }
         self._mode_label.setText(f"模式: {mode_names.get(mode, mode)}")
@@ -1158,7 +1188,7 @@ class MainWindow(QMainWindow):
                           "<p>轻量级目标检测标注工具，支持 YOLO 格式。<br>"
                           "快捷键:</p>"
                           "<ul>"
-                          "<li><b>W</b> 绘制模式 | <b>S</b> 选择模式 | <b>H</b> 平移</li>"
+                          "<li><b>W</b> 绘制BBox | <b>P</b> 绘制多边形 | <b>S</b> 选择 | <b>H</b> 平移</li>"
                           "<li><b>A/D</b> 上一张/下一张</li>"
                           "<li><b>Ctrl+Z</b> 撤销 | <b>Ctrl+Shift+Z</b> 重做</li>"
                           "<li><b>Delete</b> 删除选中</li>"

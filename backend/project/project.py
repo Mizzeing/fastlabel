@@ -68,6 +68,18 @@ class Project:
                 "ALTER TABLE images ADD COLUMN source_path TEXT NOT NULL DEFAULT ''")
             self._conn.commit()
 
+        # annotations 表迁移
+        ann_cols = [row['name'] for row in
+                     self._conn.execute("PRAGMA table_info(annotations)").fetchall()]
+        if 'type' not in ann_cols:
+            self._conn.execute(
+                "ALTER TABLE annotations ADD COLUMN type TEXT NOT NULL DEFAULT 'bbox'")
+            self._conn.commit()
+        if 'points' not in ann_cols:
+            self._conn.execute(
+                "ALTER TABLE annotations ADD COLUMN points TEXT NOT NULL DEFAULT ''")
+            self._conn.commit()
+
     # ── 连接管理 ──
 
     @property
@@ -210,16 +222,18 @@ class Project:
     def save_annotation(self, image_id: int, annotation_id: str,
                         class_id: int, x: float, y: float,
                         width: float, height: float, score: float = 1.0,
-                        status: str = 'manual'):
+                        status: str = 'manual', ann_type: str = 'bbox',
+                        points: str = ''):
         now = datetime.now().isoformat()
         self._conn.execute("""
             INSERT OR REPLACE INTO annotations
-                (annotation_id, image_id, class_id, x, y, width, height, score, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
+                (annotation_id, image_id, class_id, x, y, width, height,
+                 score, status, type, points, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     COALESCE((SELECT created_at FROM annotations WHERE annotation_id = ?), ?),
                     ?)
         """, (annotation_id, image_id, class_id, x, y, width, height, score,
-              status, annotation_id, now, now))
+              status, ann_type, points, annotation_id, now, now))
         # 更新标注计数
         count = self._conn.execute(
             "SELECT COUNT(*) as cnt FROM annotations WHERE image_id = ?",
@@ -265,15 +279,28 @@ class Project:
             "DELETE FROM annotations WHERE image_id = ?", (image_id,))
         now = datetime.now().isoformat()
         for ann in annotations:
+            ann_type = ann.get('type', 'bbox')
+            points_json = ''
+            if ann_type == 'polygon':
+                pts = ann.get('points', [])
+                import json
+                points_json = json.dumps(pts)
+
+            x = ann.get('x', 0.0)
+            y = ann.get('y', 0.0)
+            w = ann.get('w', ann.get('width', 0.0))
+            h = ann.get('h', ann.get('height', 0.0))
+
             self._conn.execute("""
                 INSERT INTO annotations
-                    (annotation_id, image_id, class_id, x, y, width, height, score, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (annotation_id, image_id, class_id, x, y, width, height,
+                     score, status, type, points, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 ann['annotation_id'], image_id, ann['class_id'],
-                ann['x'], ann['y'], ann['w'], ann['h'],
+                x, y, w, h,
                 ann.get('score', 1.0), ann.get('status', 'manual'),
-                now, now
+                ann_type, points_json, now, now
             ))
         count = len(annotations)
         self._conn.execute(

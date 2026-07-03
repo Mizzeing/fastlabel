@@ -74,11 +74,17 @@ class ImageView(QWidget):
         self._draw_btn.setToolTip("绘制矩形框 [W]")
         self._mode_group.addButton(self._draw_btn, 1)
 
+        self._polygon_btn = QToolButton()
+        self._polygon_btn.setText("多边形 (P)")
+        self._polygon_btn.setCheckable(True)
+        self._polygon_btn.setToolTip("绘制多边形 [P]")
+        self._mode_group.addButton(self._polygon_btn, 2)
+
         self._pan_btn = QToolButton()
         self._pan_btn.setText("平移 (H)")
         self._pan_btn.setCheckable(True)
         self._pan_btn.setToolTip("平移视图 [H]")
-        self._mode_group.addButton(self._pan_btn, 2)
+        self._mode_group.addButton(self._pan_btn, 3)
 
         self._mode_group.buttonClicked[int].connect(self._on_mode_clicked)
 
@@ -142,7 +148,7 @@ class ImageView(QWidget):
         return sep
 
     def _on_mode_clicked(self, idx: int):
-        modes = [Mode.SELECT, Mode.DRAW, Mode.PAN]
+        modes = [Mode.SELECT, Mode.DRAW, Mode.DRAW_POLYGON, Mode.PAN]
         if 0 <= idx < len(modes):
             self.canvas.set_mode(modes[idx])
 
@@ -152,9 +158,9 @@ class ImageView(QWidget):
 
     def sync_mode_buttons(self, mode: str):
         """同步工具栏按钮状态（不触发 canvas.set_mode，避免循环）"""
-        idx_map = {Mode.SELECT: 0, Mode.DRAW: 1, Mode.PAN: 2}
+        idx_map = {Mode.SELECT: 0, Mode.DRAW: 1, Mode.DRAW_POLYGON: 2, Mode.PAN: 3}
         idx = idx_map.get(mode, 0)
-        for i in range(3):
+        for i in range(4):
             btn = self._mode_group.button(i)
             if btn:
                 btn.setChecked(i == idx)

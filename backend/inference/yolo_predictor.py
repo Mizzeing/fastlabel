@@ -6,7 +6,7 @@
 
 import numpy as np
 from typing import List, Optional
-from .base import BasePredictor, PredictionResult
+from .base import BasePredictor, PredictionResult, SegmentationPredictionResult
 
 
 class YOLOPredictor(BasePredictor):
@@ -46,6 +46,10 @@ class YOLOPredictor(BasePredictor):
                 iou_threshold: float = 0.45) -> List[PredictionResult]:
         """执行 YOLO 预测
 
+        支持检测和分割模型：
+        - 检测模型：返回 BBox PredictionResult
+        - 分割模型：返回带多边形点的 SegmentationPredictionResult
+
         Args:
             image: RGB 图像 (H, W, 3)
             conf_threshold: 置信度阈值 (0~1)
@@ -69,21 +73,55 @@ class YOLOPredictor(BasePredictor):
         if boxes is None or len(boxes) == 0:
             return detections
 
-        for box in boxes:
-            x1, y1, x2, y2 = box.xyxy[0].tolist()
-            score = float(box.conf[0])
-            cls_id = int(box.cls[0])
-            label = results[0].names[cls_id]
+        # 判断是否为分割模型
+        is_seg = hasattr(results[0], 'masks') and results[0].masks is not None
 
-            detections.append(PredictionResult(
-                class_id=cls_id,
-                label=label,
-                x=x1 / img_w,
-                y=y1 / img_h,
-                w=(x2 - x1) / img_w,
-                h=(y2 - y1) / img_h,
-                score=score,
-            ))
+        if is_seg:
+            # 分割模型：提取多边形点
+            masks = results[0].masks
+            for i, box in enumerate(boxes):
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                score = float(box.conf[0])
+                cls_id = int(box.cls[0])
+                label = results[0].names[cls_id]
+
+                # 提取多边形点
+                points = []
+                if i < len(masks.xy):
+                    poly_xy = masks.xy[i]  # 绝对坐标 (N, 2)
+                    if len(poly_xy) >= 3:
+                        points = [
+                            (float(p[0]) / img_w, float(p[1]) / img_h)
+                            for p in poly_xy
+                        ]
+
+                detections.append(SegmentationPredictionResult(
+                    class_id=cls_id,
+                    label=label,
+                    x=x1 / img_w,
+                    y=y1 / img_h,
+                    w=(x2 - x1) / img_w,
+                    h=(y2 - y1) / img_h,
+                    score=score,
+                    points=points,
+                ))
+        else:
+            # 检测模型：标准 BBox
+            for box in boxes:
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                score = float(box.conf[0])
+                cls_id = int(box.cls[0])
+                label = results[0].names[cls_id]
+
+                detections.append(PredictionResult(
+                    class_id=cls_id,
+                    label=label,
+                    x=x1 / img_w,
+                    y=y1 / img_h,
+                    w=(x2 - x1) / img_w,
+                    h=(y2 - y1) / img_h,
+                    score=score,
+                ))
 
         return detections
 

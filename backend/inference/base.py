@@ -42,6 +42,27 @@ class PredictionResult:
                 f"{self.score:.3f})")
 
 
+class SegmentationPredictionResult(PredictionResult):
+    """分割预测结果（带多边形点）"""
+
+    def __init__(self, class_id: int, label: str,
+                 x: float, y: float, w: float, h: float,
+                 score: float, points: List[Tuple[float, float]] = None):
+        super().__init__(class_id, label, x, y, w, h, score)
+        self.points = points or []
+
+    def to_dict(self) -> dict:
+        d = super().to_dict()
+        d['points'] = [[float(x), float(y)] for x, y in self.points]
+        d['type'] = 'polygon'
+        return d
+
+    def __repr__(self):
+        return (f"SegPred({self.label}, "
+                f"{len(self.points)}pts, "
+                f"{self.score:.3f})")
+
+
 class BasePredictor(ABC):
     """预测器基类"""
 

@@ -14,6 +14,7 @@ from typing import Optional, Dict, List, Callable
 
 from backend.annotation.shape import Shape
 from backend.annotation.bbox import BBox
+from backend.annotation.polygon import Polygon
 
 
 class PropertyDock(QDockWidget):
@@ -111,8 +112,9 @@ class PropertyDock(QDockWidget):
         self.setVisible(True)
 
         # 更新 ID
+        type_label = "Polygon" if isinstance(shape, Polygon) else "BBox"
         self._id_label.setText(f"ID: {shape.annotation_id} | "
-                               f"Label: {shape.label}")
+                               f"{type_label}: {shape.label}")
 
         # 更新位置
         if isinstance(shape, BBox):
@@ -121,6 +123,13 @@ class PropertyDock(QDockWidget):
             self._y_spin.setValue(shape.y)
             self._w_spin.setValue(shape.w)
             self._h_spin.setValue(shape.h)
+            self._block_signals(False)
+        elif isinstance(shape, Polygon):
+            self._block_signals(True)
+            self._x_spin.setValue(shape.get_bbox()[0])
+            self._y_spin.setValue(shape.get_bbox()[1])
+            self._w_spin.setValue(shape.get_bbox()[2])
+            self._h_spin.setValue(shape.get_bbox()[3])
             self._block_signals(False)
 
         # 更新类别选择
@@ -163,15 +172,15 @@ class PropertyDock(QDockWidget):
 
     def _on_value_changed(self, value):
         """属性值变更"""
-        if self._shape is None or not isinstance(self._shape, BBox):
+        if self._shape is None:
             return
-        bbox = self._shape
-        bbox.x = self._x_spin.value()
-        bbox.y = self._y_spin.value()
-        bbox.w = self._w_spin.value()
-        bbox.h = self._h_spin.value()
-
-        self.property_changed.emit()
+        if isinstance(self._shape, BBox):
+            self._shape.x = self._x_spin.value()
+            self._shape.y = self._y_spin.value()
+            self._shape.w = self._w_spin.value()
+            self._shape.h = self._h_spin.value()
+            self.property_changed.emit()
+        # Polygon 的包围盒属性只读（通过顶点编辑调整）
 
     def _on_class_combo_changed(self, idx: int):
         """类别更改"""

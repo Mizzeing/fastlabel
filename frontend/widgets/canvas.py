@@ -24,13 +24,15 @@ from PyQt5.QtCore import (
 from PyQt5.QtGui import (
     QPainter, QPen, QBrush, QColor, QPixmap,
     QImage, QFont, QCursor, QPainterPath,
-    QTransform,
+    QTransform, QPolygonF,
 )
 import numpy as np
+import math
 from typing import Optional, List, Tuple, Callable, Dict
 
 from backend.annotation.shape import Shape
 from backend.annotation.bbox import BBox
+from backend.annotation.polygon import Polygon
 from backend.utils.misc import get_class_color, hex_to_rgb
 
 
@@ -39,7 +41,8 @@ from backend.utils.misc import get_class_color, hex_to_rgb
 class Mode:
     """交互模式常量"""
     SELECT = 'select'       # 选择/编辑
-    DRAW = 'draw'           # 绘制新标注
+    DRAW = 'draw'           # 绘制新 BBox
+    DRAW_POLYGON = 'draw_polygon'  # 绘制多边形
     PAN = 'pan'             # 平移视图
     ZOOM = 'zoom'           # 缩放
 
@@ -102,6 +105,16 @@ class Canvas(QWidget):
         self._panning: bool = False
         self._pan_start: QPointF = QPointF(0, 0)
         self._pan_offset_start: QPointF = QPointF(0, 0)
+
+        # ── 多边形绘制状态 ──
+        self._poly_points: List[QPointF] = []  # 正在绘制的多边形顶点（画布坐标）
+        self._poly_hover_pos: Optional[QPointF] = None  # 鼠标悬停位置（用于绘制中连线）
+        self._poly_closing: bool = False  # 是否正在闭合检测中
+
+        # ── 多边形编辑状态 ──
+        self._editing_polygon: bool = False  # 是否正在编辑多边形
+        self._edit_vertex_idx: int = -1     # 正在拖拽的顶点索引
+        self._edit_insert_idx: int = -1     # 插入顶点位置的索引
 
         # ── 拖动手柄前的保存状态 ──
         self._resize_old_bbox: Optional[tuple] = None
@@ -240,13 +253,19 @@ class Canvas(QWidget):
         self._dragging = False
         self._resizing = False
         self._selecting = False
+        self._poly_points.clear()
+        self._poly_hover_pos = None
+        self._poly_closing = False
+        self._editing_polygon = False
+        self._edit_vertex_idx = -1
+        self._edit_insert_idx = -1
         self._update_cursor()
         self.mode_changed.emit(mode)
         self.update()
 
     def _update_cursor(self):
         """根据当前模式设置光标"""
-        if self._mode == Mode.DRAW:
+        if self._mode in (Mode.DRAW, Mode.DRAW_POLYGON):
             self.setCursor(QCursor(Qt.CrossCursor))
         elif self._mode == Mode.PAN:
             self.setCursor(QCursor(Qt.OpenHandCursor))
@@ -275,54 +294,67 @@ class Canvas(QWidget):
 
     def paintEvent(self, event):
         """主绘制函数"""
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        try:
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform)
 
-        # 背景
-        painter.fillRect(self.rect(), QColor(45, 45, 45))
+            # 背景
+            painter.fillRect(self.rect(), QColor(45, 45, 45))
 
-        if self._pixmap is None:
-            # 无图片时的提示
-            painter.setPen(QColor(180, 180, 180))
-            painter.setFont(QFont('Arial', 14))
-            painter.drawText(self.rect(), Qt.AlignCenter,
-                             "请打开项目并选择图片\n快捷键: Ctrl+O 打开项目")
-            return
+            if self._pixmap is None:
+                # 无图片时的提示
+                painter.setPen(QColor(180, 180, 180))
+                painter.setFont(QFont('Arial', 14))
+                painter.drawText(self.rect(), Qt.AlignCenter,
+                                 "请打开项目并选择图片\n快捷键: Ctrl+O 打开项目")
+                return
 
-        # ── 绘制图像 ──
-        painter.setTransform(QTransform().translate(
-            self._offset.x(), self._offset.y()).scale(self._scale, self._scale))
-        painter.drawPixmap(0, 0, self._pixmap)
-        painter.resetTransform()
+            # ── 绘制图像 ──
+            painter.setTransform(QTransform().translate(
+                self._offset.x(), self._offset.y()).scale(self._scale, self._scale))
+            painter.drawPixmap(0, 0, self._pixmap)
+            painter.resetTransform()
 
-        # ── 绘制标注 ──
-        if self._annotations:
-            for shape in self._annotations:
-                if isinstance(shape, BBox):
-                    self._draw_bbox(painter, shape, is_selected=shape.selected)
+            # ── 绘制标注 ──
+            if self._annotations:
+                for shape in self._annotations:
+                    if isinstance(shape, BBox):
+                        self._draw_bbox(painter, shape, is_selected=shape.selected)
+                    elif isinstance(shape, Polygon):
+                        self._draw_polygon(painter, shape, is_selected=shape.selected)
 
-        # ── 绘制预测框（虚线蓝色，低于标注层） ──
-        if self._predictions:
-            for shape in self._predictions:
-                if isinstance(shape, BBox):
-                    self._draw_prediction_bbox(painter, shape, is_selected=shape.selected)
+            # ── 绘制预测框（虚线蓝色，低于标注层） ──
+            if self._predictions:
+                for shape in self._predictions:
+                    if isinstance(shape, BBox):
+                        self._draw_prediction_bbox(painter, shape, is_selected=shape.selected)
+                    elif isinstance(shape, Polygon):
+                        self._draw_prediction_polygon(painter, shape, is_selected=shape.selected)
 
-        # ── 绘制中的框 ──
-        if self._drawing:
-            self._draw_drawing_bbox(painter)
+            # ── 绘制中的框 ──
+            if self._drawing:
+                self._draw_drawing_bbox(painter)
 
-        # ── 选区框 ──
-        if self._selecting and self._select_rect:
-            painter.setPen(QPen(QColor(100, 200, 255), 1, Qt.DashLine))
-            painter.setBrush(QBrush(QColor(100, 200, 255, 30)))
-            painter.drawRect(self._select_rect)
+            # ── 绘制中的多边形 ──
+            if self._poly_points:
+                self._draw_drawing_polygon(painter)
 
-        # ── 放大信息 ──
-        painter.setPen(QColor(200, 200, 200))
-        painter.setFont(QFont('Monospace', 10))
-        info = f"缩放: {self._scale:.2f}x  |  图片: {self._image_size[0]}x{self._image_size[1]}"
-        painter.drawText(10, self.height() - 10, info)
+            # ── 选区框 ──
+            if self._selecting and self._select_rect:
+                painter.setPen(QPen(QColor(100, 200, 255), 1, Qt.DashLine))
+                painter.setBrush(QBrush(QColor(100, 200, 255, 30)))
+                painter.drawRect(self._select_rect)
+
+            # ── 放大信息 ──
+            painter.setPen(QColor(200, 200, 200))
+            painter.setFont(QFont('Monospace', 10))
+            info = f"缩放: {self._scale:.2f}x  |  图片: {self._image_size[0]}x{self._image_size[1]}"
+            painter.drawText(10, self.height() - 10, info)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.status_message.emit(f"绘制出错: {e}")
 
     def _draw_bbox(self, painter: QPainter, bbox: BBox, is_selected: bool = False):
         """绘制单个 BBox"""
@@ -413,6 +445,205 @@ class Canvas(QWidget):
         painter.setBrush(QBrush(QColor(0, 200, 255, 30)))
         painter.drawRect(rect)
 
+    # ── 多边形绘制 ──
+
+    VERTEX_RADIUS = 5
+    VERTEX_HIT_RADIUS = 8
+    CLOSE_DISTANCE = 12  # 闭合检测距离（画布像素）
+
+    def _draw_polygon(self, painter: QPainter, polygon: Polygon,
+                       is_selected: bool = False):
+        """绘制单个多边形标注"""
+        if len(polygon.points) < 2:
+            return
+
+        w, h = self._image_size
+        color = QColor(get_class_color(polygon.class_id))
+
+        # 将归一化顶点转为画布坐标
+        pts_canvas = []
+        for px, py in polygon.points:
+            ix, iy = px * w, py * h
+            cp = self.image_to_canvas(ix, iy)
+            pts_canvas.append(cp)
+
+        # 创建 QPolygonF
+        poly_q = QPolygonF([QPointF(p.x(), p.y()) for p in pts_canvas])
+
+        # 填充
+        if len(polygon.points) >= 3:
+            fill_color = QColor(color.red(), color.green(), color.blue(), 40)
+            if is_selected:
+                fill_color = QColor(color.red(), color.green(), color.blue(), 60)
+            painter.setBrush(QBrush(fill_color))
+            painter.setPen(Qt.NoPen)
+            painter.drawPolygon(poly_q)
+
+        # 边线
+        pen_width = 2 if not is_selected else 3
+        pen = QPen(color, pen_width)
+        if is_selected:
+            pen.setStyle(Qt.DashLine)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        if len(polygon.points) >= 2:
+            for i in range(len(pts_canvas)):
+                p1 = pts_canvas[i]
+                p2 = pts_canvas[(i + 1) % len(pts_canvas)]
+                painter.drawLine(int(p1.x()), int(p1.y()),
+                                 int(p2.x()), int(p2.y()))
+
+        # 标签
+        if self._show_labels and polygon.label:
+            label_text = polygon.label
+            if self._show_scores and polygon.score < 1.0:
+                label_text += f" ({polygon.score:.2f})"
+
+            bbox = polygon.get_bbox()
+            bx, by = bbox[0] * w, bbox[1] * h
+            top_left = self.image_to_canvas(bx, by)
+
+            font = QFont('Arial', 10)
+            painter.setFont(font)
+            fm = painter.fontMetrics()
+            text_w = fm.width(label_text) + 6
+            text_h = fm.height() + 2
+
+            label_bg = QRectF(top_left.x(), max(0, top_left.y() - text_h),
+                              text_w, text_h)
+            painter.setBrush(QBrush(color))
+            painter.setPen(Qt.NoPen)
+            painter.drawRect(label_bg)
+
+            painter.setPen(QColor(255, 255, 255))
+            painter.drawText(label_bg, Qt.AlignCenter, label_text)
+
+        # 顶点手柄（选中时）
+        if is_selected:
+            self._draw_polygon_handles(painter, pts_canvas)
+
+    def _draw_polygon_handles(self, painter: QPainter, pts_canvas: List[QPointF]):
+        """绘制多边形顶点手柄和插入点"""
+        # 顶点手柄
+        for pt in pts_canvas:
+            painter.setPen(QPen(QColor(255, 255, 255), 1))
+            painter.setBrush(QBrush(QColor(0, 120, 215)))
+            painter.drawEllipse(pt, self.VERTEX_RADIUS, self.VERTEX_RADIUS)
+
+        # 边中点插入手柄（至少3个顶点才有边）
+        if len(pts_canvas) >= 3:
+            painter.setPen(QPen(QColor(200, 200, 200), 1, Qt.DashLine))
+            painter.setBrush(QBrush(QColor(255, 255, 255, 180)))
+            n = len(pts_canvas)
+            for i in range(n):
+                p1 = pts_canvas[i]
+                p2 = pts_canvas[(i + 1) % n]
+                mid = QPointF((p1.x() + p2.x()) / 2, (p1.y() + p2.y()) / 2)
+                painter.drawEllipse(mid, 3, 3)
+
+    def _draw_drawing_polygon(self, painter: QPainter):
+        """绘制正在绘制中的多边形"""
+        if not self._poly_points:
+            return
+
+        pts = self._poly_points
+
+        # 已固定的边
+        if len(pts) >= 2:
+            painter.setPen(QPen(QColor(0, 200, 255), 2))
+            painter.setBrush(Qt.NoBrush)
+            for i in range(len(pts) - 1):
+                p1 = pts[i]
+                p2 = pts[i + 1]
+                painter.drawLine(int(p1.x()), int(p1.y()),
+                                 int(p2.x()), int(p2.y()))
+
+        # 最后一个点到鼠标位置的临时线
+        if self._poly_hover_pos and len(pts) >= 1:
+            painter.setPen(QPen(QColor(0, 200, 255, 150), 2, Qt.DashLine))
+            last = pts[-1]
+            painter.drawLine(int(last.x()), int(last.y()),
+                             int(self._poly_hover_pos.x()),
+                             int(self._poly_hover_pos.y()))
+
+        # 闭合指示（鼠标靠近起点）
+        if len(pts) >= 3 and self._poly_hover_pos:
+            first = pts[0]
+            dist = math.hypot(
+                self._poly_hover_pos.x() - first.x(),
+                self._poly_hover_pos.y() - first.y())
+            if dist < self.CLOSE_DISTANCE * 2:
+                painter.setPen(QPen(QColor(0, 255, 0), 2, Qt.DashLine))
+                last = pts[-1]
+                painter.drawLine(int(last.x()), int(last.y()),
+                                 int(first.x()), int(first.y()))
+                # 提示圆
+                painter.setBrush(QBrush(QColor(0, 255, 0, 60)))
+                painter.setPen(QPen(QColor(0, 255, 0), 1))
+                painter.drawEllipse(first, 12, 12)
+
+        # 顶点
+        painter.setPen(QPen(QColor(0, 200, 255), 1))
+        painter.setBrush(QBrush(QColor(0, 200, 255)))
+        for pt in pts:
+            painter.drawEllipse(pt, self.VERTEX_RADIUS, self.VERTEX_RADIUS)
+
+    def _draw_prediction_polygon(self, painter: QPainter, polygon: Polygon,
+                                  is_selected: bool = False):
+        """绘制预测多边形（虚线蓝色）"""
+        if len(polygon.points) < 2:
+            return
+
+        w, h = self._image_size
+        pts_canvas = []
+        for px, py in polygon.points:
+            ix, iy = px * w, py * h
+            cp = self.image_to_canvas(ix, iy)
+            pts_canvas.append(cp)
+
+        poly_q = QPolygonF([QPointF(p.x(), p.y()) for p in pts_canvas])
+
+        # 填充
+        if len(polygon.points) >= 3:
+            painter.setBrush(QBrush(QColor(0, 100, 255, 20)))
+            painter.setPen(Qt.NoPen)
+            painter.drawPolygon(poly_q)
+
+        # 边线
+        pen_width = 2 if not is_selected else 3
+        pen = QPen(QColor(0, 150, 255), pen_width, Qt.DashLine)
+        if is_selected:
+            pen.setWidth(3)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        if len(polygon.points) >= 2:
+            for i in range(len(pts_canvas)):
+                p1 = pts_canvas[i]
+                p2 = pts_canvas[(i + 1) % len(pts_canvas)]
+                painter.drawLine(int(p1.x()), int(p1.y()),
+                                 int(p2.x()), int(p2.y()))
+
+        # 标签
+        label_text = f"{polygon.label} ({polygon.score:.2f})"
+        font = QFont('Arial', 10)
+        painter.setFont(font)
+        fm = painter.fontMetrics()
+        text_w = fm.width(label_text) + 6
+        text_h = fm.height() + 2
+
+        bbox = polygon.get_bbox()
+        top_left = self.image_to_canvas(bbox[0] * w, bbox[1] * h)
+        label_bg = QRectF(top_left.x(), max(0, top_left.y() - text_h),
+                          text_w, text_h)
+        painter.setBrush(QBrush(QColor(0, 120, 215, 220)))
+        painter.setPen(Qt.NoPen)
+        painter.drawRect(label_bg)
+        painter.setPen(QColor(255, 255, 255))
+        painter.drawText(label_bg, Qt.AlignCenter, label_text)
+
+        if is_selected:
+            self._draw_polygon_handles(painter, pts_canvas)
+
     def _draw_prediction_bbox(self, painter: QPainter, bbox: BBox,
                                is_selected: bool = False):
         """绘制预测框（虚线、蓝色、半透明）"""
@@ -469,14 +700,34 @@ class Canvas(QWidget):
         if event.button() == Qt.LeftButton:
             if self._mode == Mode.DRAW:
                 self._start_draw(pos)
+            elif self._mode == Mode.DRAW_POLYGON:
+                self._polygon_add_point(pos)
             elif self._mode == Mode.SELECT:
                 try:
                     if self._selected and not ctrl:
-                        handle = self._hit_handle(pos)
-                        if handle >= 0:
-                            self._start_resize(pos, handle)
-                            return
-                        if self._hit_bbox(pos, self._selected):
+                        # 多边形顶点拖拽
+                        if isinstance(self._selected, Polygon):
+                            vi = self._hit_polygon_vertex(pos, self._selected)
+                            if vi >= 0:
+                                self._start_polygon_vertex_drag(pos, vi)
+                                return
+                            # 边中点插入
+                            ei = self._hit_polygon_edge(pos, self._selected)
+                            if ei >= 0:
+                                self._insert_polygon_vertex(self._selected, ei, pos)
+                                return
+                            if self._selected.contains_point(
+                                    img_pos.x(), img_pos.y()):
+                                self._start_drag(pos, img_pos)
+                                return
+                        # BBox 调整大小
+                        if isinstance(self._selected, BBox):
+                            handle = self._hit_handle(pos)
+                            if handle >= 0:
+                                self._start_resize(pos, handle)
+                                return
+                        if hasattr(self._selected, 'contains_point') and \
+                           self._selected.contains_point(img_pos.x(), img_pos.y()):
                             self._start_drag(pos, img_pos)
                             return
 
@@ -495,14 +746,13 @@ class Canvas(QWidget):
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
-                    self.status_message.emit(f"鼠标操作出错: {e}")
-
-            elif self._mode == Mode.PAN:
-                self._start_pan(pos)
+                    self.status_message.emit(f"鼠标按下出错: {e}")
 
         elif event.button() == Qt.RightButton:
             if self._mode == Mode.DRAW and self._drawing:
                 self._cancel_draw()
+            elif self._mode == Mode.DRAW_POLYGON and self._poly_points:
+                self._polygon_undo_point()
 
     def mouseMoveEvent(self, event):
         pos = event.pos()
@@ -517,29 +767,45 @@ class Canvas(QWidget):
                 f"归一化: ({norm.x():.4f}, {norm.y():.4f})"
             )
 
+        if self._poly_points:
+            self._polygon_update_hover(pos)
         if self._drawing:
             self._update_draw(pos)
         elif self._dragging:
             self._update_drag(pos, img_pos)
         elif self._resizing:
             self._update_resize(pos)
+        elif self._editing_polygon:
+            self._update_polygon_vertex_drag(pos)
         elif self._panning:
             self._update_pan(pos)
         elif self._selecting:
             self._update_select_rect(pos)
         elif self._mode == Mode.SELECT and self._selected:
             # 光标样式
-            handle = self._hit_handle(pos)
-            if handle >= 0:
-                self.setCursor(QCursor(Qt.SizeFDiagCursor)
-                               if handle in [0, 3] else
-                               QCursor(Qt.SizeBDiagCursor)
-                               if handle in [1, 2] else
-                               QCursor(Qt.SizeAllCursor))
-            elif self._hit_bbox(pos, self._selected):
-                self.setCursor(QCursor(Qt.SizeAllCursor))
-            else:
-                self.setCursor(QCursor(Qt.ArrowCursor))
+            if isinstance(self._selected, Polygon):
+                vi = self._hit_polygon_vertex(pos, self._selected)
+                if vi >= 0:
+                    self.setCursor(QCursor(Qt.SizeAllCursor))
+                elif self._hit_polygon_edge(pos, self._selected) >= 0:
+                    self.setCursor(QCursor(Qt.CrossCursor))
+                elif self._selected.contains_point(
+                        img_pos.x(), img_pos.y()):
+                    self.setCursor(QCursor(Qt.SizeAllCursor))
+                else:
+                    self.setCursor(QCursor(Qt.ArrowCursor))
+            elif isinstance(self._selected, BBox):
+                handle = self._hit_handle(pos)
+                if handle >= 0:
+                    self.setCursor(QCursor(Qt.SizeFDiagCursor)
+                                   if handle in [0, 3] else
+                                   QCursor(Qt.SizeBDiagCursor)
+                                   if handle in [1, 2] else
+                                   QCursor(Qt.SizeAllCursor))
+                elif self._hit_bbox(pos, self._selected):
+                    self.setCursor(QCursor(Qt.SizeAllCursor))
+                else:
+                    self.setCursor(QCursor(Qt.ArrowCursor))
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -549,6 +815,8 @@ class Canvas(QWidget):
                 self._finish_drag()
             elif self._resizing:
                 self._finish_resize()
+            elif self._editing_polygon:
+                self._finish_polygon_edit()
             elif self._panning:
                 self._panning = False
                 self._update_cursor()
@@ -557,8 +825,11 @@ class Canvas(QWidget):
                 self._selecting = False
 
     def mouseDoubleClickEvent(self, event):
-        """双击适应窗口"""
+        """双击适应窗口或完成多边形"""
         if event.button() == Qt.LeftButton:
+            if self._mode == Mode.DRAW_POLYGON and len(self._poly_points) >= 3:
+                self._polygon_finish()
+                return
             self._fit_to_widget()
             self.update()
 
@@ -587,43 +858,54 @@ class Canvas(QWidget):
     # ── 键盘事件 ──
 
     def keyPressEvent(self, event):
-        key = event.key()
+        try:
+            key = event.key()
 
-        if key == Qt.Key_Delete or key == Qt.Key_Backspace:
-            if self._selected:
-                # 判断选中的是预测还是标注
-                if self._selected in self._predictions:
-                    self.annotation_reject_requested.emit(self._selected)
-                elif self._on_request_delete:
-                    self._on_request_delete(self._selected)
-        elif key == Qt.Key_Return or key == Qt.Key_Enter:
-            # Enter 接受选中的预测
-            if self._selected and self._selected in self._predictions:
-                self.annotation_accept_requested.emit(self._selected)
-        elif key == Qt.Key_Escape:
-            if self._drawing:
-                self._cancel_draw()
-            self.annotation_selected.emit(None)
-        elif key == Qt.Key_W:
-            # W 键在绘制和选择之间切换
-            if self._mode == Mode.DRAW:
+            if key == Qt.Key_Delete or key == Qt.Key_Backspace:
+                if self._selected:
+                    if self._selected in self._predictions:
+                        self.annotation_reject_requested.emit(self._selected)
+                    elif self._on_request_delete:
+                        self._on_request_delete(self._selected)
+            elif key == Qt.Key_Return or key == Qt.Key_Enter:
+                if self._selected and self._selected in self._predictions:
+                    self.annotation_accept_requested.emit(self._selected)
+            elif key == Qt.Key_Escape:
+                if self._drawing:
+                    self._cancel_draw()
+                if self._poly_points:
+                    self._poly_points.clear()
+                    self._poly_hover_pos = None
+                    self.update()
+                self.annotation_selected.emit(None)
+            elif key == Qt.Key_W:
+                if self._mode == Mode.DRAW:
+                    self.set_mode(Mode.SELECT)
+                elif self._mode == Mode.SELECT:
+                    self.set_mode(Mode.DRAW)
+            elif key == Qt.Key_P:
+                if self._mode == Mode.DRAW_POLYGON:
+                    self.set_mode(Mode.SELECT)
+                else:
+                    self.set_mode(Mode.DRAW_POLYGON)
+            elif key == Qt.Key_S:
                 self.set_mode(Mode.SELECT)
-            else:
-                self.set_mode(Mode.DRAW)
-        elif key == Qt.Key_S:
-            self.set_mode(Mode.SELECT)
-        elif key == Qt.Key_H:
-            self.set_mode(Mode.PAN)
-        elif key == Qt.Key_Plus or key == Qt.Key_Equal:
-            self._scale *= 1.2
-            self._scale = min(50.0, self._scale)
-            self.update()
-        elif key == Qt.Key_Minus:
-            self._scale /= 1.2
-            self._scale = max(0.1, self._scale)
-            self.update()
+            elif key == Qt.Key_H:
+                self.set_mode(Mode.PAN)
+            elif key == Qt.Key_Plus or key == Qt.Key_Equal:
+                self._scale *= 1.2
+                self._scale = min(50.0, self._scale)
+                self.update()
+            elif key == Qt.Key_Minus:
+                self._scale /= 1.2
+                self._scale = max(0.1, self._scale)
+                self.update()
 
-        super().keyPressEvent(event)
+            super().keyPressEvent(event)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.status_message.emit(f"键盘操作出错: {e}")
 
     # ── 绘制操作 ──
 
@@ -692,8 +974,15 @@ class Canvas(QWidget):
             self._selected.x += dx_img
             self._selected.y += dy_img
             self._drag_img_start = QPointF(img_pos)
-            self.annotation_changed.emit()
-            self.update()
+        elif isinstance(self._selected, Polygon):
+            dx_img = (img_pos.x() - self._drag_img_start.x()) / self._image_size[0]
+            dy_img = (img_pos.y() - self._drag_img_start.y()) / self._image_size[1]
+            self._selected.points = [
+                (x + dx_img, y + dy_img) for x, y in self._selected.points
+            ]
+            self._drag_img_start = QPointF(img_pos)
+        self.annotation_changed.emit()
+        self.update()
 
     def _finish_drag(self):
         self._dragging = False
@@ -843,6 +1132,7 @@ class Canvas(QWidget):
     def _hit_test(self, pos: QPointF) -> Optional[Shape]:
         """检测画布坐标pos处是否有标注"""
         img_pos = self.canvas_to_image(pos.x(), pos.y())
+        px, py = img_pos.x(), img_pos.y()
         # 从上层往下查
         for shape in reversed(self._annotations):
             if isinstance(shape, BBox):
@@ -850,7 +1140,11 @@ class Canvas(QWidget):
                 sy = shape.y * self._image_size[1]
                 sw = shape.w * self._image_size[0]
                 sh = shape.h * self._image_size[1]
-                if sx <= img_pos.x() <= sx + sw and sy <= img_pos.y() <= sy + sh:
+                if sx <= px <= sx + sw and sy <= py <= sy + sh:
+                    return shape
+            elif isinstance(shape, Polygon):
+                if shape.contains_point(px / self._image_size[0] if self._image_size[0] > 0 else 0,
+                                        py / self._image_size[1] if self._image_size[1] > 0 else 0):
                     return shape
         return None
 
@@ -862,6 +1156,146 @@ class Canvas(QWidget):
         sw = bbox.w * self._image_size[0]
         sh = bbox.h * self._image_size[1]
         return sx <= img_pos.x() <= sx + sw and sy <= img_pos.y() <= sy + sh
+
+    # ── 多边形绘制操作 ──
+
+    def _polygon_add_point(self, pos: QPointF):
+        """添加多边形顶点"""
+        # 检测是否点击在起点上（闭合多边形）
+        if len(self._poly_points) >= 2:
+            first = self._poly_points[0]
+            dist = math.hypot(pos.x() - first.x(), pos.y() - first.y())
+            if dist < self.CLOSE_DISTANCE:
+                self._polygon_finish()
+                return
+
+        self._poly_points.append(QPointF(pos))
+        self._poly_hover_pos = QPointF(pos)
+        self.update()
+
+    def _polygon_update_hover(self, pos: QPointF):
+        """更新绘制中多边形的鼠标悬停位置"""
+        if self._poly_points:
+            self._poly_hover_pos = QPointF(pos)
+            self.update()
+
+    def _polygon_undo_point(self):
+        """撤销上一个顶点"""
+        if self._poly_points:
+            self._poly_points.pop()
+            self.update()
+
+    def _polygon_finish(self):
+        """完成多边形绘制"""
+        if len(self._poly_points) < 3:
+            # 点数不够，忽略
+            self._poly_points.clear()
+            self._poly_hover_pos = None
+            self.update()
+            return
+
+        # 将画布坐标转为归一化坐标
+        pts_normalized = []
+        for pt in self._poly_points:
+            img_pt = self.canvas_to_image(pt.x(), pt.y())
+            norm = self.image_to_normalized(img_pt.x(), img_pt.y())
+            # 裁剪到 [0, 1]
+            nx = max(0, min(1, norm.x()))
+            ny = max(0, min(1, norm.y()))
+            pts_normalized.append((nx, ny))
+
+        # 忽略面积太小的多边形
+        if len(pts_normalized) >= 3:
+            # 粗略面积检测
+            xs = [p[0] for p in pts_normalized]
+            ys = [p[1] for p in pts_normalized]
+            area = (max(xs) - min(xs)) * (max(ys) - min(ys))
+            if area < 0.001:
+                self._poly_points.clear()
+                self._poly_hover_pos = None
+                self.update()
+                return
+
+        polygon = Polygon(points=pts_normalized)
+        self.annotation_added.emit(polygon)
+
+        self._poly_points.clear()
+        self._poly_hover_pos = None
+        self.update()
+
+    # ── 多边形编辑操作 ──
+
+    def _hit_polygon_vertex(self, pos: QPointF, polygon: Polygon) -> int:
+        """检测是否点击到多边形顶点，返回顶点索引"""
+        w, h = self._image_size
+        for i, (px, py) in enumerate(polygon.points):
+            ix, iy = px * w, py * h
+            cp = self.image_to_canvas(ix, iy)
+            dist = math.hypot(pos.x() - cp.x(), pos.y() - cp.y())
+            if dist < self.VERTEX_HIT_RADIUS:
+                return i
+        return -1
+
+    def _hit_polygon_edge(self, pos: QPointF, polygon: Polygon) -> int:
+        """检测是否点击到多边形边，返回插入位置索引（边的起点）"""
+        if len(polygon.points) < 3:
+            return -1
+        w, h = self._image_size
+        n = len(polygon.points)
+        for i in range(n):
+            x1, y1 = polygon.points[i]
+            x2, y2 = polygon.points[(i + 1) % n]
+            p1 = self.image_to_canvas(x1 * w, y1 * h)
+            p2 = self.image_to_canvas(x2 * w, y2 * h)
+            mid = QPointF((p1.x() + p2.x()) / 2, (p1.y() + p2.y()) / 2)
+            dist = math.hypot(pos.x() - mid.x(), pos.y() - mid.y())
+            if dist < self.VERTEX_HIT_RADIUS:
+                return (i + 1) % n
+        return -1
+
+    def _start_polygon_vertex_drag(self, pos: QPointF, vertex_idx: int):
+        """开始拖拽多边形顶点"""
+        self._editing_polygon = True
+        self._edit_vertex_idx = vertex_idx
+        self._drag_start = QPointF(pos)
+
+    def _update_polygon_vertex_drag(self, pos: QPointF):
+        """拖拽多边形顶点"""
+        if not self._editing_polygon or not isinstance(self._selected, Polygon):
+            return
+        poly = self._selected
+        if self._edit_vertex_idx < 0 or self._edit_vertex_idx >= len(poly.points):
+            return
+
+        img_pos = self.canvas_to_image(pos.x(), pos.y())
+        norm = self.image_to_normalized(img_pos.x(), img_pos.y())
+        nx = max(0, min(1, norm.x()))
+        ny = max(0, min(1, norm.y()))
+
+        pts = list(poly.points)
+        pts[self._edit_vertex_idx] = (nx, ny)
+        poly.points = pts
+        self.annotation_changed.emit()
+        self.update()
+
+    def _finish_polygon_edit(self):
+        """完成多边形编辑"""
+        self._editing_polygon = False
+        self._edit_vertex_idx = -1
+        self._edit_insert_idx = -1
+
+    def _insert_polygon_vertex(self, polygon: Polygon, insert_idx: int, pos: QPointF):
+        """在边的中点插入新顶点"""
+        img_pos = self.canvas_to_image(pos.x(), pos.y())
+        norm = self.image_to_normalized(img_pos.x(), img_pos.y())
+        nx = max(0, min(1, norm.x()))
+        ny = max(0, min(1, norm.y()))
+
+        pts = list(polygon.points)
+        pts.insert(insert_idx, (nx, ny))
+        polygon.points = pts
+        self.annotation_changed.emit()
+        self.update()
 
     # ── 上下文菜单 ──
 

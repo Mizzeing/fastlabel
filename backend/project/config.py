@@ -23,6 +23,7 @@ DEFAULT_CONFIG = {
         'mode': 'bbox',
         'auto_save': True,
         'auto_save_interval': 60,
+        'available_modes': ['bbox', 'polygon'],
     },
     'display': {
         'show_scores': True,

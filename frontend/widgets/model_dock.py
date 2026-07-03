@@ -219,6 +219,12 @@ class ModelDock(QWidget):
             self._path_label.setText("未选择模型")
             self._path_label.setToolTip("")
 
+    def set_last_browse_dir(self, dir_path: str):
+        """设置上次浏览目录（从项目配置恢复）"""
+        from pathlib import Path
+        if dir_path and Path(dir_path).exists():
+            self._last_browse_dir = dir_path
+
     def set_prediction_count(self, count: int):
         """更新预测数量"""
         self._prediction_count = count

@@ -410,6 +410,14 @@ class MainWindow(QMainWindow):
                 self._inference_manager.conf_threshold = threshold
                 self._on_load_model(model_path)
 
+            # 恢复上次浏览模型的目录
+            last_dir = model_cfg.get('last_browse_dir', '')
+            if last_dir:
+                self._model_dock.set_last_browse_dir(last_dir)
+
+        # 即便没有 model 配置，也检查是否有全局的 last_browse_dir
+        # (兼容旧项目没有 last_browse_dir 的场景，不做额外操作)
+
     def _on_close_project(self):
         """关闭项目"""
         if self._project:
@@ -791,6 +799,7 @@ class MainWindow(QMainWindow):
                 self._project.config.set('model', {
                     'path': model_path,
                     'conf_threshold': self._inference_manager.conf_threshold,
+                    'last_browse_dir': str(Path(model_path).parent),
                 })
                 model_class_map = self._project.config.get('model_class_map', {})
                 if model_class_map:

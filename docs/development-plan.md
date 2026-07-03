@@ -99,24 +99,26 @@ main.py                     (入口文件，~50 行)
 
 ---
 
-## 🚧 第三阶段：训练闭环
+## ✅ 第三阶段：训练闭环（已完成）
 
 ### 目标
 实现从标注到训练的完整闭环，支持增量训练。
 
-### 待开发功能
-- [ ] 从已标注数据生成训练集
-- [ ] 一键启动训练
-- [ ] 训练进度监控
-- [ ] 训练完成后自动加载最新模型
-- [ ] 增量训练（持续迭代）
-- [ ] TrainDock 训练面板
+### 已完成功能
+- [x] 从已标注数据生成训练 YOLO 格式数据集
+- [x] 一键启动训练
+- [x] 训练进度监控（Epoch 进度条、Loss、mAP）
+- [x] 训练完成后自动加载最新模型
+- [x] 增量训练（从检查点继续训练）
+- [x] TrainDock 训练面板
+- [x] 训练参数配置（预设方案/架构/轮数/批次/尺寸/设备）
+- [x] 训练历史记录（最近 20 次）
+- [x] 可折叠管理面板（项目/模型/训练三区独立折叠）
 
 ### 涉及模块
-- `backend/training/` — 训练模块
-- `backend/training/trainer.py` — 训练器
-- `backend/training/dataset_builder.py` — 数据集构建
-- `backend/training/exporter.py` — 模型导出
+- `backend/train/` — 训练模块
+- `backend/train/trainer.py` — YOLOTrainer 训练核心
+- `backend/train/config.py` — TrainingConfig 训练超参数
 - `frontend/widgets/train_dock.py` — 训练面板
 
 ---

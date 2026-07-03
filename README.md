@@ -53,7 +53,6 @@
 | **模型自动缓存** | 从 Hub 下载的模型自动缓存到 `mostpt/`，跨项目复用 |
 | **增量训练** | 从已有检查点继续训练，快速迭代 |
 | **训练参数配置** | 预设方案（快速/标准/精度）、架构、轮数、批次、尺寸、设备 |
-| **训练参数配置** | 预设方案（快速/标准/精度）、架构、轮数、批次、尺寸、设备 |
 | **实时进度** | Epoch 进度条、Loss、mAP50、mAP50-95、学习率、时间 |
 | **训练日志** | 实时文本日志输出 |
 | **自动类别映射** | 新模型自动匹配项目类别顺序 |
@@ -270,7 +269,7 @@ Shape (ABC)
 管理标注列表、选中状态，集成 CommandManager 提供 Undo/Redo。
 
 #### `backend.project.project` — Project
-SQLite 数据库持久化，管理四张表：`images`、`classes`、`annotations`。
+SQLite 数据库持久化，管理三张表：`images`、`classes`、`annotations`。
 
 #### `backend.project.config` — ProjectConfig
 YAML 配置文件管理，支持类别、显示、导出等配置。

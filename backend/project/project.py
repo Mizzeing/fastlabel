@@ -57,6 +57,39 @@ class Project:
             )
         """)
 
+        # 类别表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS classes (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                color TEXT NOT NULL DEFAULT '#FFFFFF',
+                shortcut_key TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        # 标注表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS annotations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                annotation_id TEXT NOT NULL UNIQUE,
+                image_id INTEGER NOT NULL,
+                class_id INTEGER NOT NULL,
+                x REAL NOT NULL DEFAULT 0.0,
+                y REAL NOT NULL DEFAULT 0.0,
+                width REAL NOT NULL DEFAULT 0.0,
+                height REAL NOT NULL DEFAULT 0.0,
+                score REAL NOT NULL DEFAULT 1.0,
+                status TEXT NOT NULL DEFAULT 'manual',
+                type TEXT NOT NULL DEFAULT 'bbox',
+                points TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE,
+                FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
+            )
+        """)
+
         self._conn.commit()
 
     def _migrate_if_needed(self):

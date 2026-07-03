@@ -2,9 +2,8 @@
 
 ## 启动
 ```bash
-cd /home/quxin/A_Project/A_项目/fastlabel
-QT_QPA_PLATFORM=xcb python main.py
-# 或直接 python main.py（如果 wayland 没问题）
+cd /home/quxin/Projects/fastlabel
+python main.py
 ```
 
 ## 使用流程
@@ -70,14 +69,8 @@ QT_QPA_PLATFORM=xcb python main.py
 - W 键 toggle 修复
 - 右键删除图片
 
-### 多边形标注
-1. 按 P 进入多边形绘制模式
-2. 左键点击添加顶点
-3. 右键/Escape 撤销上一个顶点
-4. 双击或点击起点闭合多边形
-5. 选中多边形后拖拽顶点编辑，点击边中点插入新顶点
-
 ### 最新改动
+- 修复新建项目崩溃：`_create_tables()` 补全 `classes` 和 `annotations` 表创建
 - 多边形标注（Polygon）：逐点绘制、顶点编辑、插入/删除顶点
 - YOLO 分割模型推理支持（自动提取 mask 多边形点）
 - 新快捷键：P 切换多边形绘制模式

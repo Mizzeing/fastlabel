@@ -2,8 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![PyQt5](https://img.shields.io/badge/PyQt5-5.15+-green.svg)](https://www.riverbankcomputing.com/software/pyqt/)
-
-> [English README](README.md)
+[![English](https://img.shields.io/badge/English-blue.svg)](README.md)
 
 **FastLabel** 是一个轻量级 AI 辅助图像标注平台，围绕「人工标注 → 模型训练 → 自动标注 → 人工修正」闭环设计。从简单的 BBox 标注起步，后续可接入 YOLO、SAM 等模型实现自动标注和主动学习。
 
@@ -79,7 +78,7 @@
 
 ```bash
 # 克隆仓库
-git clone <your-repo-url>
+git clone https://github.com/Mizzeing/fastlabel.git
 cd fastlabel
 
 # 创建 conda 环境

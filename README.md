@@ -3,6 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![PyQt5](https://img.shields.io/badge/PyQt5-5.15+-green.svg)](https://www.riverbankcomputing.com/software/pyqt/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![中文](https://img.shields.io/badge/语言-中文-red.svg)](README.zh.md)
 
 **FastLabel** is a lightweight AI-assisted image annotation platform built around a human-in-the-loop workflow: **manual annotation → model training → auto-annotation → manual correction**. It integrates YOLO models for semi-automated labeling and on-device training, helping you bootstrap annotation projects quickly.
 
@@ -69,7 +70,7 @@
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/Mizzeing/fastlabel.git
 cd fastlabel
 
 # Create conda environment (recommended)

@@ -1,323 +1,320 @@
-# FastLabel - AI 辅助标注平台
+# FastLabel — AI-Assisted Image Annotation Platform
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![PyQt5](https://img.shields.io/badge/PyQt5-5.15+-green.svg)](https://www.riverbankcomputing.com/software/pyqt/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**FastLabel** 是一个轻量级 AI 辅助图像标注平台，围绕「人工标注 → 模型训练 → 自动标注 → 人工修正」闭环设计。从简单的 BBox 标注起步，后续可接入 YOLO、SAM 等模型实现自动标注和主动学习。
-
----
-
-## 目录
-
-- [功能概览](#功能概览)
-- [快速开始](#快速开始)
-- [项目结构](#项目结构)
-- [架构设计](#架构设计)
-- [核心模块](#核心模块)
-- [开发指南](#开发指南)
-- [快捷键](#快捷键)
+**FastLabel** is a lightweight AI-assisted image annotation platform built around a human-in-the-loop workflow: **manual annotation → model training → auto-annotation → manual correction**. It integrates YOLO models for semi-automated labeling and on-device training, helping you bootstrap annotation projects quickly.
 
 ---
 
-## 功能概览
+## Features
 
-### 已完成
+### ✅ Completed
 
-| 功能 | 描述 |
-|------|------|
-| 项目管理 | 新建/打开/关闭/删除项目，自动持久化 |
-| 图片导入 | 支持 JPG/PNG/BMP/TIFF/WEBP 格式，自动去重，记录来源路径 |
-| BBox 标注 | 绘制、选择、移动、调整大小 |
-| **多边形标注** | 点击绘制、顶点编辑、插入/删除顶点、拖拽移动 |
-| 多选 | Ctrl+点击多选，批量操作 |
-| 批量改标签 | 多选后右键一次修改所有选中标注的类别 |
-| 类别管理 | 添加/编辑/删除类别，颜色和快捷键配置 |
-| YOLO 导出 | 导出 YOLO 检测/分割格式 + data.yaml |
-| Undo/Redo | 完整的撤销/重做支持 |
-| YOLO 集成 | 加载 YOLO 检测/分割模型进行自动标注（.pt 文件） |
-| 置信度阈值 | 滑块调节，实时过滤低分预测 |
-| **IoU 阈值** | 滑块调节 NMS 重叠度，控制重复检测 |
-| 自动标注 | 单张/批量自动标注 |
-| 接受/拒绝 | Enter 接受 / Del 拒绝预测结果 |
-| 模型路径持久化 | 加载的模型路径自动保存到项目配置 |
-| 类别映射 | 配置模型输出索引到项目类别的映射，避免标错类 |
-| 导入 YOLO 标签 | 从已有的 YOLO txt 标注目录导入标注到项目 |
-| 图片去重导入 | 同名图片自动加源目录前缀，防止覆盖 |
-| 图片来源追溯 | 记录每张图片的原始导入路径 |
-| 记住导入目录 | 下次导入自动从上次目录打开 |
-| 图片删除 | 右键图片列表删除图片及关联标注 |
-| 统一管理面板 | 项目管理和模型管理上下合一，无需切换标签页 |
-| **一键训练** | 导出标注 → 自动分割训练/验证集 → 启动 YOLO 训练 |
-| **训练模型过滤** | 有多边形标注时自动限制只选分割模型（含 -seg） |
-| **分割模型训练** | 导出多边形坐标，纯 bbox 自动生成 4 点矩形多边形 |
-| **模型自动缓存** | 从 Hub 下载的模型自动缓存到 `mostpt/`，跨项目复用 |
-| **增量训练** | 从已有检查点继续训练，快速迭代 |
-| **训练参数配置** | 预设方案（快速/标准/精度）、架构、轮数、批次、尺寸、设备 |
-| **实时进度** | Epoch 进度条、Loss、mAP50、mAP50-95、学习率、时间 |
-| **训练日志** | 实时文本日志输出 |
-| **自动类别映射** | 新模型自动匹配项目类别顺序 |
-| **训练历史** | 记录最近 20 次训练到 config.yaml |
-| **可折叠管理面板** | 项目/模型/训练三区可独立折叠收纳，节省左侧空间 |
-| **样式分离** | 前端样式从 Python 代码迁移到独立 `.qss` 文件，易于维护 |
+| Feature | Description |
+|---------|-------------|
+| Project Management | Create / open / close / delete projects with auto-persistence |
+| Image Import | Supports JPG/PNG/BMP/TIFF/WEBP; auto-deduplication; records source paths |
+| BBox Annotation | Draw, select, move, resize bounding boxes |
+| **Polygon Annotation** | Click-to-draw polygons; vertex editing (insert/delete/drag) |
+| Multi-Select | Ctrl+Click for batch operations |
+| Batch Label Editing | Right-click to change labels on multiple selected annotations at once |
+| Class Management | Add / edit / delete classes with color picker and shortcut binding |
+| YOLO Export | Export YOLO detection & segmentation format with `data.yaml` |
+| Undo/Redo | Full Undo/Redo support via Command pattern |
+| YOLO Integration | Load YOLO detection/segmentation models (`.pt`, `.engine`, `.onnx`) for auto-annotation |
+| Confidence Threshold | Slider for real-time low-score prediction filtering |
+| **IoU Threshold** | Slider to control NMS overlap for duplicate detection |
+| Auto-Annotation | Single-image or batch auto-annotation |
+| Accept / Reject | `Enter` to accept / `Del` to reject predictions |
+| Model Path Persistence | Loaded model path auto-saved to project config |
+| Class Mapping | Configure model output index → project class mapping to prevent mislabeling |
+| Import YOLO Labels | Import existing YOLO `.txt` annotations from a directory |
+| Image Dedup Import | Same-name images auto-prefixed with source directory name |
+| Image Source Traceability | Each image records its original import path in the database |
+| Remember Import Dir | Import dialog remembers the last-used directory |
+| Image Deletion | Right-click to delete images and their associated annotations |
+| Unified Management Panel | Project management, model management, and training in one panel — no tab switching |
+| **One-Click Training** | Export annotations → auto-split train/val sets → launch YOLO training |
+| **Training Model Filter** | Auto-restrict to segmentation models (`-seg`) when polygon annotations exist |
+| **Segmentation Training** | Polygons exported directly; bbox-only labels get auto-generated 4-point rectangles |
+| **Model Auto-Cache** | Models downloaded from Hub cached in `mostpt/` for cross-project reuse |
+| **Resume Training** | Continue from an existing checkpoint for rapid iteration |
+| **Training Config Presets** | Quick / Standard / Precision presets; configurable architecture, epochs, batch size, image size, device |
+| **Real-Time Progress** | Epoch progress bar, Loss, mAP50, mAP50-95, learning rate, elapsed time |
+| **Training Logs** | Real-time text log output during training |
+| **Auto Class Mapping** | New models auto-matched to project class order |
+| **Training History** | Last 20 training runs recorded in `config.yaml` |
+| **Collapsible Panels** | Project / Model / Training sections independently collapsible |
+| **Style Separation** | UI styles extracted to standalone `.qss` files for easy maintenance |
 
-### 后续阶段规划
+### 🚧 Future Phases
 
-- **第四阶段**: Active Learning、SAM 集成、旋转框标注、插件系统
+- Active Learning & Curriculum sampling
+- SAM (Segment Anything Model) integration
+- Rotated bounding boxes (OBB)
+- Plugin system
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 环境要求
+### Prerequisites
 
 - Python 3.9+
 - pip / conda
 
-### 安装
+### Installation
 
 ```bash
-# 克隆仓库
+# Clone the repository
 git clone <your-repo-url>
 cd fastlabel
 
-# 创建 conda 环境
+# Create conda environment (recommended)
 conda create -n fastlabel python=3.9
 conda activate fastlabel
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 运行
+### Running
 
 ```bash
 python main.py
 ```
 
-### 快速上手
+### Quick Tutorial
 
-1. **新建项目**: 点击左侧「新建」或 `Ctrl+N`
-2. **导入图片**: 点击「导入」或 `Ctrl+I`（自动记住上次导入目录）
-3. **开始标注**: 按 `W` 进入 BBox 绘制模式，拖拽画框
-4. **多边形标注**: 按 `P` 进入多边形模式，逐点击画多边形，双击或点击起点闭合
-4. **切换类别**: 选择标注列表下方的类别下拉框
-5. **导出**: 点击菜单 `文件 → 导出 YOLO` 或 `Ctrl+E`
+1. **New Project**: Click "New" or press `Ctrl+N`
+2. **Import Images**: Click "Import" or press `Ctrl+I` (remembers the last directory)
+3. **Start Annotating**: Press `W` to enter BBox draw mode, drag to draw boxes
+4. **Polygon Annotation**: Press `P` to enter polygon mode, click to place vertices, double-click or click the first vertex to close
+5. **Switch Classes**: Select from the class dropdown below the annotation list
+6. **Export**: `File → Export YOLO` or `Ctrl+E`
 
-**AI 辅助标注**:
-1. 加载 YOLO 模型（支持 `.pt` / `.engine` / `.onnx`）
-2. 点击 **「📋 类别映射」** 配置模型输出索引对应的项目类别
-3. 点击 **「🎯 自动标注当前图片」** — 蓝色虚线为预测结果
-4. `Enter` 接受 / `Del` 拒绝
-5. 分割模型（如 `yolov8n-seg.pt`）自动生成多边形预测
+**AI-Assisted Annotation**:
+1. Load a YOLO model (`.pt` / `.engine` / `.onnx`)
+2. Click **"📋 Class Mapping"** to configure model output → project class mapping
+3. Click **"🎯 Auto-Annotate Current Image"** — blue dashed boxes are predictions
+4. `Enter` to accept / `Del` to reject
+5. Segmentation models (e.g. `yolov8n-seg.pt`) automatically produce polygon predictions
 
-**模型训练**:
-1. 标注至少 1 张图片后，在左侧面板下方 **「🏋️ 训练管理」** 配置参数
-2. 选择预设方案（快速/标准/精度优先）或自定义
-3. 点击 **「🚀 开始训练」**，训练在后台线程执行，UI 不卡顿
-4. 实时监控 Epoch 进度、Loss、mAP 指标
-5. 训练完成后模型自动保存到 `projects/<项目名>/models/best.pt`
-6. 勾选 **「训练完成后自动加载模型」** 可直接用新模型推理
-7. 支持 **增量训练**：勾选后选择已有 `.pt` 文件继续训练
+**Model Training**:
+1. After annotating at least 1 image, configure parameters in the **"🏋️ Training"** section
+2. Choose a preset (Quick / Standard / Precision) or customize
+3. Click **"🚀 Start Training"** — training runs in a background thread, UI stays responsive
+4. Monitor epoch progress, Loss, mAP in real time
+5. Trained model saved to `projects/<project-name>/models/best.pt`
+6. Check **"Auto-load model after training"** to use the new model immediately
+7. **Resume Training**: Check the box and select a checkpoint `.pt` file
 
-**导入已有标注**:
-- `文件 → 导入 YOLO 标签` — 从已有的 YOLO txt 标注目录导入
+**Import Existing Labels**:
+- `File → Import YOLO Labels` — import from an existing YOLO `.txt` label directory
 
 ---
 
-## 项目结构
+## Project Structure
 
 ```
 fastlabel/
 │
-├── main.py                     # 入口文件
-├── requirements.txt            # 依赖
-├── README.md                   # 本文件
+├── main.py                     # Entry point
+├── requirements.txt            # Dependencies
+├── README.md                   # This file
 │
-├── backend/                    # 后端核心逻辑
-│   ├── annotation/             # 标注模块
-│   │   ├── shape.py            # Shape 基类
-│   │   ├── bbox.py             # BBox 矩形框
-│   │   ├── command.py          # Command 模式 (Undo/Redo)
-│   │   └── manager.py          # 标注管理器
+├── backend/                    # Backend core logic
+│   ├── annotation/             # Annotation module
+│   │   ├── shape.py            # Shape base class (ABC)
+│   │   ├── bbox.py             # BBox rectangle
+│   │   ├── polygon.py          # Polygon (segmentation)
+│   │   ├── command.py          # Command pattern (Undo/Redo)
+│   │   └── manager.py          # Annotation manager
 │   │
-│   ├── project/                # 项目管理
-│   │   ├── project.py          # 项目模型 + SQLite 数据库
-│   │   ├── config.py           # YAML 配置管理
-│   │   └── manager.py          # 项目管理器
+│   ├── project/                # Project management
+│   │   ├── project.py          # Project model + SQLite database
+│   │   ├── config.py           # YAML config management
+│   │   └── manager.py          # Project manager
 │   │
-│   ├── dataset/                # 数据集管理
-│   │   ├── image_loader.py     # 图片加载/缓存
-│   │   ├── label_loader.py     # YOLO 标签读写
-│   │   └── manager.py          # 数据集管理器
+│   ├── dataset/                # Dataset management
+│   │   ├── image_loader.py     # Image loading/caching
+│   │   ├── label_loader.py     # YOLO label read/write
+│   │   └── manager.py          # Dataset manager
 │   │
-│   ├── inference/              # 🆕 推理模块 (第二阶段)
-│   │   ├── base.py             # BasePredictor 抽象基类
-│   │   ├── yolo_predictor.py   # YOLO 预测器实现
-│   │   └── manager.py          # 推理管理器
+│   ├── inference/              # Inference module
+│   │   ├── base.py             # BasePredictor abstract class
+│   │   ├── yolo_predictor.py   # YOLO predictor implementation
+│   │   └── manager.py          # Inference manager
 │   │
-│   ├── train/                  # 🆕 训练模块 (第三阶段)
-│   │   ├── __init__.py         # 入口
-│   │   ├── config.py           # TrainingConfig 训练超参数
-│   │   └── trainer.py          # YOLOTrainer 训练核心
+│   ├── train/                  # Training module
+│   │   ├── __init__.py         # Entry point
+│   │   ├── config.py           # TrainingConfig hyperparameters
+│   │   └── trainer.py          # YOLOTrainer core
 │   │
-│   ├── export/                 # 导出模块
-│   │   └── yolo.py             # YOLO 格式导出
+│   ├── export/                 # Export module
+│   │   └── yolo.py             # YOLO format export
 │   │
 │   └── utils/
-│       └── misc.py             # 工具函数和常量
+│       └── misc.py             # Utility functions and constants
 │
-├── frontend/                   # 前端 PyQt5 图形界面
-│   ├── main_window.py          # 主窗口 (组装所有组件)
-│   ├── styles/                 # 独立样式文件 (.qss)
-│   │   ├── __init__.py         # load_styles() 加载器
-│   │   ├── base.qss            # 全局基础：背景、菜单栏、状态栏
-│   │   ├── components.qss      # 通用控件：按钮、下拉框、滑块等
-│   │   ├── dialogs.qss         # 对话框：消息框、文件对话框
-│   │   ├── docks.qss           # 面板：项目管理、模型、训练等
-│   │   └── canvas.qss          # 画布工具栏
+├── frontend/                   # PyQt5 UI
+│   ├── main_window.py          # Main window (assembles all components)
+│   ├── styles/                 # Standalone style files (.qss)
+│   │   ├── __init__.py         # load_styles() loader
+│   │   ├── base.qss            # Global base: backgrounds, menus, status bar
+│   │   ├── components.qss      # Common widgets: buttons, dropdowns, sliders
+│   │   ├── dialogs.qss         # Dialogs: message boxes, file dialogs
+│   │   ├── docks.qss           # Panels: project, model, training
+│   │   └── canvas.qss          # Canvas toolbar
 │   └── widgets/
-│       ├── canvas.py           # 核心画布组件 (+ 预测框绘制)
-│       ├── image_view.py       # 图像查看器 (含工具条)
-│       ├── collapsible_section.py  # 可折叠收纳面板组件
-│       ├── project_dock.py     # 项目管理面板（统一左侧）
-│       ├── label_dock.py       # 标注列表面板
-│       ├── property_dock.py    # 属性编辑面板
-│       ├── class_dialog.py     # 类别管理对话框
-│       ├── class_mapping_dialog.py  # 模型类别映射对话框
-│       ├── model_dock.py       # 模型管理面板
-│       └── train_dock.py       # 训练管理面板
+│       ├── canvas.py           # Core canvas component (annotation drawing)
+│       ├── image_view.py       # Image viewer (with toolbar)
+│       ├── collapsible_section.py  # Collapsible panel component
+│       ├── project_dock.py     # Project management panel
+│       ├── label_dock.py       # Annotation list panel
+│       ├── property_dock.py    # Property editor panel
+│       ├── class_dialog.py     # Class management dialog
+│       ├── class_mapping_dialog.py  # Model class mapping dialog
+│       ├── model_dock.py       # Model management panel
+│       └── train_dock.py       # Training management panel
 │
-├── projects/                   # 项目数据存放目录
-├── models/                     # 模型存放目录
-│   └── mostpt/                 # 常用预训练模型
-└── docs/                       # 文档
+├── mostpt/                     # Pretrained model cache directory
+├── projects/                   # Project data (gitignored)
+├── models/                     # Model storage (gitignored)
+└── docs/                       # Documentation
+    ├── architecture.md
+    ├── backend-api.md
+    ├── development-plan.md
+    ├── frontend-guide.md
+    └── quick-ref.md
 ```
 
 ---
 
-## 架构设计
+## Architecture
 
-### 设计理念
+### Design Philosophy
 
-FastLabel 按照 **AI 辅助标注平台** 而非简单画框工具来设计，核心是「人在回路」(Human-in-the-loop) 闭环：
+FastLabel is designed as an **AI-assisted annotation platform** rather than a simple drawing tool, centered on a **human-in-the-loop** workflow:
 
 ```
-导入图片
+Import Images
     │
     ▼
-人工标注少量样本
+Manual Annotation (small batch)
     │
     ▼
-一键训练轻量模型  ←────┐
-    │                  │
-    ▼                  │
-模型自动标注剩余图片    │
-    │                  │
-    ▼                  │
-人工快速修正预测结果    │
-    │                  │
-    ▼                  │
-加入训练集继续训练 ─────┘
+One-Click Training ←──────────┐
+    │                          │
+    ▼                          │
+Auto-Annotate Remaining Images │
+    │                          │
+    ▼                          │
+Quick Manual Correction        │
+    │                          │
+    ▼                          │
+Add to Training Set, Retrain ──┘
     │
     ▼
-模型越来越准确
+Model Improves Over Time
 ```
 
-### 三层架构
+### Three-Layer Architecture
 
 ```
 ┌─────────────────────────────────┐
 │         Frontend (PyQt5)        │  ← MainWindow, Canvas, DockWidgets
 ├─────────────────────────────────┤
-│        Backend 核心逻辑          │  ← Annotation, Project, Dataset
+│         Backend (Core Logic)    │  ← Annotation, Project, Dataset
 ├─────────────────────────────────┤
 │         Data Layer (SQLite)     │  ← project.db, config.yaml, labels/
 └─────────────────────────────────┘
 ```
 
-### 类层次设计
+### Class Hierarchy
 
-所有标注对象继承自 `Shape` 基类：
+All annotation types inherit from the `Shape` base class:
 
 ```
 Shape (ABC)
-  ├── BBox              矩形框 (当前实现)
-  ├── Polygon           多边形 ✅ (已实现)
-  ├── BrushMask         画笔蒙版 (规划)
-  ├── KeyPoint          关键点 (规划)
-  └── RotatedBox        旋转框 (规划)
+  ├── BBox              Bounding box (implemented)
+  ├── Polygon           Polygon segmentation ✅ (implemented)
+  ├── BrushMask         Brush mask (planned)
+  ├── KeyPoint          Keypoint (planned)
+  └── RotatedBox        Rotated box (planned)
 ```
 
 ---
 
-## 核心模块
+## Core Modules
 
-### Backend 模块
+### Backend
 
-#### `backend.annotation.shape` — Shape 基类
-所有标注对象的抽象基类，定义了 `to_dict()`、`copy()`、`scale()` 等接口。
+#### `backend.annotation.shape` — Shape Base Class
+Abstract base class for all annotation types, defining `to_dict()`, `copy()`, `scale()`, etc.
 
-#### `backend.annotation.bbox` — BBox 矩形框
-归一化坐标的矩形框标注，支持 IoU 计算、点包含检测。
+#### `backend.annotation.bbox` — BBox
+Normalized-coordinate bounding box with IoU calculation and point containment.
 
-#### `backend.annotation.command` — Command 模式
-实现完整的 Undo/Redo 机制：
-- `AddCommand` / `DeleteCommand` / `MoveCommand` / `ResizeCommand` / `ChangeClassCommand`
-- `CommandManager` 管理命令栈（上限 100 步）
+#### `backend.annotation.polygon` — Polygon
+Normalized-coordinate polygon for segmentation masks.
+
+#### `backend.annotation.command` — Command Pattern
+Full Undo/Redo via `AddCommand` / `DeleteCommand` / `MoveCommand` / `ResizeCommand` / `ChangeClassCommand`, managed by `CommandManager` (100-step stack).
 
 #### `backend.annotation.manager` — AnnotationManager
-管理标注列表、选中状态，集成 CommandManager 提供 Undo/Redo。
+Manages annotation list, selection state, integrates CommandManager for Undo/Redo.
 
 #### `backend.project.project` — Project
-SQLite 数据库持久化，管理三张表：`images`、`classes`、`annotations`。
-
-#### `backend.project.config` — ProjectConfig
-YAML 配置文件管理，支持类别、显示、导出等配置。
+SQLite persistence with 3 tables: `images`, `classes`, `annotations`.
 
 #### `backend.dataset.manager` — DatasetManager
-协调 Project、ImageLoader、LabelLoader 之间的关系，提供统一的数据访问接口。
+Coordinates Project, ImageLoader, and LabelLoader; provides a unified data access interface.
 
 #### `backend.export.yolo` — YOLOExporter
-导出 YOLO 格式（class_id cx cy w h score）+ data.yaml。
+Exports YOLO format (`class_id cx cy w h score`) + `data.yaml`.
 
-### Frontend 模块
+### Frontend
 
-#### `frontend.widgets.canvas` — Canvas 核心画布
-- 图像渲染、缩放、平移
-- 三种交互模式：选择、绘制、平移
-- BBox 绘制、选择、拖拽移动、手柄调整大小
-- 缩放手柄（9 个控制点）
-- 右键上下文菜单
-- 选区框选（拖拽选中）
+#### `frontend.widgets.canvas` — Core Canvas
+- Image rendering, zoom, pan
+- Three interaction modes: Select, Draw, Pan
+- BBox drawing / selection / drag-move / resize handles
+- 9-point resize handles
+- Right-click context menu
+- Selection rectangle (rubber-band select)
+- Polygon drawing with vertex editing
 
 #### `frontend.widgets.image_view` — ImageView
-封装 Canvas，提供顶部的模式工具栏和缩放控件。
+Wraps Canvas with a mode toolbar and zoom controls.
 
 #### `frontend.widgets.project_dock` — ProjectDock
-左侧面板，显示项目树和当前项目的图片列表。
+Left panel showing project tree and image list for the current project.
 
 #### `frontend.widgets.label_dock` — LabelDock
-右侧面板，显示当前图片的所有标注列表，支持右键修改类别。
+Right panel showing annotation list for the current image; supports right-click for batch label changes.
 
 #### `frontend.widgets.property_dock` — PropertyDock
-选中标注的属性编辑器，支持精确修改位置和类别。
+Property editor for selected annotations; supports precise position and class modification.
 
 #### `frontend.widgets.class_dialog` — ClassDialog
-类别管理对话框，添加/编辑/删除类别，支持颜色选择和快捷键绑定。
+Class management dialog with add / edit / delete, color picker, and shortcut binding.
 
 ---
 
-## 开发指南
+## Development Guide
 
-### 添加新标注类型
+### Adding a New Annotation Type
 
-继承 `Shape` 基类：
+Extend the `Shape` base class:
 
 ```python
 from backend.annotation.shape import Shape
 
 class Polygon(Shape):
-    points: List[tuple] = []  # 归一化坐标列表
+    points: list = []          # Normalized coordinate list
 
     def to_dict(self) -> dict:
         return {'points': self.points, ...}
@@ -326,87 +323,97 @@ class Polygon(Shape):
         return Polygon(points=self.points.copy(), ...)
 
     def contains_point(self, px, py) -> bool:
-        # 点包含检测
+        # Point-in-polygon test
         ...
 ```
 
-然后在 Canvas 中添加对应的绘制逻辑。
+Then add the corresponding drawing logic in Canvas.
 
-### 集成新模型
+### Integrating a New Model
 
-实现统一预测接口：
+Implement the unified prediction interface:
 
 ```python
 class MyModel:
     def predict(self, image: np.ndarray) -> list:
-        # 返回 [{'bbox': [x,y,w,h], 'class_id': int, 'score': float}, ...]
+        # Return [{'bbox': [x,y,w,h], 'class_id': int, 'score': float}, ...]
         pass
 ```
 
-### 自定义快捷键
+### Customizing Shortcuts
 
-在 `backend/utils/misc.py` 中修改 `DEFAULT_SHORTCUTS`。
-
----
-
-## 快捷键
-
-| 快捷键 | 功能 |
-|--------|------|
-| `W` | BBox 绘制↔选择模式 |
-| `P` | 多边形绘制↔选择模式 |
-| `S` | 回到选择模式 |
-| `H` | 平移模式 |
-| `A` / `D` | 上一张 / 下一张 |
-| `Ctrl+Z` | 撤销 |
-| `Ctrl+Shift+Z` | 重做 |
-| `Delete` / `Backspace` / `Ctrl+D` | 删除选中标注/拒绝预测 |
-| `Enter` | 接受选中预测结果 |
-| `Escape` | 取消绘制 / 取消选中 |
-| `Ctrl+T` | 聚焦训练面板 |
-| `Ctrl+N` | 新建项目 |
-| `Ctrl+O` | 打开项目 |
-| `Ctrl+I` | 导入图片 |
-| `Ctrl+E` | 导出 YOLO |
-| `Ctrl+=` / `Ctrl+-` | 放大 / 缩小 |
-| `双击` | 适应窗口 |
-| `滑轮` | 缩放 |
-| `Ctrl+点击` | 多选/切换选中 |
-| `右键 → 修改类别` | 单个/批量改标签 |
+Edit `DEFAULT_SHORTCUTS` in `backend/utils/misc.py`.
 
 ---
 
-## 项目数据格式
+## Keyboard Shortcuts
 
-### 目录结构
+| Shortcut | Action |
+|----------|--------|
+| `W` | Toggle BBox draw / select mode |
+| `P` | Toggle polygon draw / select mode |
+| `S` | Return to select mode |
+| `H` | Pan mode |
+| `A` / `D` | Previous / next image |
+| `Ctrl+Z` | Undo |
+| `Ctrl+Shift+Z` | Redo |
+| `Delete` / `Backspace` / `Ctrl+D` | Delete selected / reject predictions |
+| `Enter` | Accept selected predictions |
+| `Escape` | Cancel drawing / deselect |
+| `Ctrl+T` | Focus training panel |
+| `Ctrl+N` | New project |
+| `Ctrl+O` | Open project |
+| `Ctrl+I` | Import images |
+| `Ctrl+E` | Export YOLO |
+| `Ctrl+=` / `Ctrl+-` | Zoom in / out |
+| `Double-click` | Fit to window |
+| `Scroll wheel` | Zoom |
+| `Ctrl+Click` | Multi-select / toggle selection |
+| `Right-click → Change Class` | Change label (single or batch) |
+
+---
+
+## Data Format
+
+### Project Directory Layout
 
 ```
-projects/<项目名>/
-├── images/           # 图片文件
-├── labels/           # YOLO 标注 (导出时生成)
-├── masks/            # 分割蒙版 (规划)
-├── models/           # 模型文件（训练输出 + 预训练权重）
-├── cache/            # 缓存
-├── exports/          # 导出文件
-├── config.yaml       # 项目配置
-└── project.db        # SQLite 数据库
+projects/<project-name>/
+├── images/           # Image files
+├── labels/           # YOLO annotations (generated on export)
+├── masks/            # Segmentation masks (planned)
+├── models/           # Model files (training output + pretrained weights)
+├── cache/            # Cache
+├── exports/          # Export files
+├── config.yaml       # Project configuration
+└── project.db        # SQLite database
 ```
 
-### 图片导入
+### Image Import
 
-- 同名图片自动加 **源目录前缀** 存储（如 `0522D11_Image--01.jpg`）
-- 数据库记录 `source_path` 字段，追溯每张图片的原始来源路径
-- 导入对话框自动记住上次使用的目录
+- **Deduplication**: same-name images auto-prefixed with source directory name (e.g. `0522D11_Image--01.jpg`)
+- **Source Tracking**: the `source_path` field in the database records the original import path for each image
+- **Directory Memory**: the import dialog auto-remembers the last-used directory
 
-### YOLO 标签格式
+### YOLO Label Format
 
-每张图片对应一个 `.txt` 文件，支持两种格式：
+Each image has a corresponding `.txt` file, supporting two formats:
 
-**检测格式**: `<class_id> <cx> <cy> <width> <height> [score]`
+**Detection format**: `<class_id> <cx> <cy> <width> <height> [score]`
 
-**分割格式**: `<class_id> <x1> <y1> <x2> <y2> ... <xn> <yn> [score]`
+**Segmentation format**: `<class_id> <x1> <y1> <x2> <y2> ... <xn> <yn> [score]`
 
-所有坐标归一化到 [0, 1]，导入时自动识别格式。
+All coordinates are normalized to [0, 1]. Format is auto-detected on import.
+
+---
+
+## Why FastLabel?
+
+- **Offline-first**: No cloud dependency — everything runs locally
+- **Integrated training loop**: Annotate, train, and iterate without leaving the app
+- **Lightweight**: Built with PyQt5 and YOLO — no heavy frameworks required
+- **Extensible**: Clean Shape class hierarchy makes it easy to add new annotation types
+- **Human-in-the-loop**: Designed from day 1 for the annotation → train → auto-annotate → correct workflow
 
 ---
 

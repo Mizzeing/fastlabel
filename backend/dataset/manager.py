@@ -10,8 +10,12 @@ from .image_loader import ImageLoader
 from .label_loader import LabelLoader
 from ..project.project import Project
 
+DEBUG = False
+
 def _log(*args):
-    print("[DatasetManager]", *args, file=sys.stderr)
+    if DEBUG:
+        print("[DatasetManager]", *args, file=sys.stderr)
+
 from ..annotation.bbox import BBox
 from ..annotation.polygon import Polygon
 from ..annotation.shape import Shape

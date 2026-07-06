@@ -107,7 +107,7 @@ class Canvas(QWidget):
         self._pan_offset_start: QPointF = QPointF(0, 0)
 
         # ── 多边形绘制状态 ──
-        self._poly_points: List[QPointF] = []  # 正在绘制的多边形顶点（画布坐标）
+        self._poly_points: List[QPointF] = []  # 正在绘制的多边形顶点（图像坐标，缩放不变）
         self._poly_hover_pos: Optional[QPointF] = None  # 鼠标悬停位置（用于绘制中连线）
         self._poly_closing: bool = False  # 是否正在闭合检测中
 
@@ -548,33 +548,33 @@ class Canvas(QWidget):
 
         pts = self._poly_points
 
-        # 已固定的边
+        # 已固定的边（pts 为图像坐标，需转画布坐标）
         if len(pts) >= 2:
             painter.setPen(QPen(QColor(0, 200, 255), 2))
             painter.setBrush(Qt.NoBrush)
             for i in range(len(pts) - 1):
-                p1 = pts[i]
-                p2 = pts[i + 1]
+                p1 = self.image_to_canvas(pts[i].x(), pts[i].y())
+                p2 = self.image_to_canvas(pts[i + 1].x(), pts[i + 1].y())
                 painter.drawLine(int(p1.x()), int(p1.y()),
                                  int(p2.x()), int(p2.y()))
 
         # 最后一个点到鼠标位置的临时线
         if self._poly_hover_pos and len(pts) >= 1:
             painter.setPen(QPen(QColor(0, 200, 255, 150), 2, Qt.DashLine))
-            last = pts[-1]
+            last = self.image_to_canvas(pts[-1].x(), pts[-1].y())
             painter.drawLine(int(last.x()), int(last.y()),
                              int(self._poly_hover_pos.x()),
                              int(self._poly_hover_pos.y()))
 
         # 闭合指示（鼠标靠近起点）
         if len(pts) >= 3 and self._poly_hover_pos:
-            first = pts[0]
+            first = self.image_to_canvas(pts[0].x(), pts[0].y())
             dist = math.hypot(
                 self._poly_hover_pos.x() - first.x(),
                 self._poly_hover_pos.y() - first.y())
             if dist < self.CLOSE_DISTANCE * 2:
                 painter.setPen(QPen(QColor(0, 255, 0), 2, Qt.DashLine))
-                last = pts[-1]
+                last = self.image_to_canvas(pts[-1].x(), pts[-1].y())
                 painter.drawLine(int(last.x()), int(last.y()),
                                  int(first.x()), int(first.y()))
                 # 提示圆
@@ -586,7 +586,8 @@ class Canvas(QWidget):
         painter.setPen(QPen(QColor(0, 200, 255), 1))
         painter.setBrush(QBrush(QColor(0, 200, 255)))
         for pt in pts:
-            painter.drawEllipse(pt, self.VERTEX_RADIUS, self.VERTEX_RADIUS)
+            pc = self.image_to_canvas(pt.x(), pt.y())
+            painter.drawEllipse(pc, self.VERTEX_RADIUS, self.VERTEX_RADIUS)
 
     def _draw_prediction_polygon(self, painter: QPainter, polygon: Polygon,
                                   is_selected: bool = False):
@@ -1171,12 +1172,14 @@ class Canvas(QWidget):
         # 检测是否点击在起点上（闭合多边形）
         if len(self._poly_points) >= 2:
             first = self._poly_points[0]
-            dist = math.hypot(pos.x() - first.x(), pos.y() - first.y())
+            first_canvas = self.image_to_canvas(first.x(), first.y())
+            dist = math.hypot(pos.x() - first_canvas.x(), pos.y() - first_canvas.y())
             if dist < self.CLOSE_DISTANCE:
                 self._polygon_finish(closed_by_proximity=True)
                 return
 
-        self._poly_points.append(QPointF(pos))
+        # 存储为图像坐标（不受缩放影响）
+        self._poly_points.append(self.canvas_to_image(pos.x(), pos.y()))
         self._poly_hover_pos = QPointF(pos)
         self.update()
 
@@ -1207,11 +1210,10 @@ class Canvas(QWidget):
 
         pts = self._poly_points
 
-        # 将画布坐标转为归一化坐标
+        # 将图像坐标转为归一化坐标
         pts_normalized = []
         for pt in pts:
-            img_pt = self.canvas_to_image(pt.x(), pt.y())
-            norm = self.image_to_normalized(img_pt.x(), img_pt.y())
+            norm = self.image_to_normalized(pt.x(), pt.y())
             # 裁剪到 [0, 1]
             nx = max(0, min(1, norm.x()))
             ny = max(0, min(1, norm.y()))
@@ -1243,7 +1245,7 @@ class Canvas(QWidget):
 
     # ── 开放线膨胀 ──
 
-    POLYGON_THICKNESS = 0.012  # 默认膨胀厚度（归一化坐标）
+    POLYGON_THICKNESS = 0.004  # 默认膨胀厚度（归一化坐标），裂纹请用 0.002~0.004
 
     def _create_thickened_polygon(self, pts_norm):
         """将开放线左右膨胀为闭合多边形（用于裂纹标注）

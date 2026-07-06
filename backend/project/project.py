@@ -10,8 +10,11 @@ from datetime import datetime
 
 from .config import ProjectConfig
 
+DEBUG = False
+
 def _log(*args):
-    print('[Project]', *args, file=sys.stderr)
+    if DEBUG:
+        print('[Project]', *args, file=sys.stderr)
 
 
 class Project:

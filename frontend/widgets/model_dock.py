@@ -91,7 +91,7 @@ class ModelDock(QWidget):
         thresh_label.setStyleSheet("color: #cccccc; font-size: 11px;")
         threshold_layout.addWidget(thresh_label)
         self._threshold_slider = QSlider(Qt.Horizontal)
-        self._threshold_slider.setRange(5, 95)      # 0.05 ~ 0.95
+        self._threshold_slider.setRange(1, 95)      # 0.01 ~ 0.95
         self._threshold_slider.setValue(25)          # 默认 0.25
         self._threshold_slider.valueChanged.connect(self._on_threshold_changed)
         self._threshold_slider.setObjectName("model_threshold_slider")
@@ -110,7 +110,7 @@ class ModelDock(QWidget):
         iou_layout.addWidget(iou_label)
 
         self._iou_slider = QSlider(Qt.Horizontal)
-        self._iou_slider.setRange(10, 90)       # 0.10 ~ 0.90
+        self._iou_slider.setRange(5, 90)       # 0.05 ~ 0.90
         self._iou_slider.setValue(45)            # 默认 0.45
         self._iou_slider.valueChanged.connect(self._on_iou_changed)
         self._iou_slider.setObjectName("iou_slider")

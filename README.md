@@ -18,15 +18,15 @@
 | Project Management | Create / open / close / delete projects with auto-persistence |
 | Image Import | Supports JPG/PNG/BMP/TIFF/WEBP; auto-deduplication; records source paths |
 | BBox Annotation | Draw, select, move, resize bounding boxes |
-| **Polygon Annotation** | Click-to-draw polygons; vertex editing (insert/delete/drag); **open-line auto-expansion**: draw a centerline, double-click or Enter to auto-generate a thickened polygon for cracks & thin objects; **distinct cursors** for vertex drag (cross) vs. shape drag (move) |
+| **Polygon Annotation** | Click-to-draw polygons; vertex editing (insert/delete/drag); **open-line auto-expansion**: draw a centerline, double-click or Enter to auto-generate a thickened polygon for cracks & thin objects; **distinct cursors** for vertex drag (cross) vs. shape drag (move); **zoom-safe drawing**: in-progress vertices stay locked to image even during zoom/pan |
 | Multi-Select | Ctrl+Click for batch operations |
 | Batch Label Editing | Right-click to change labels on multiple selected annotations at once |
 | Class Management | Add / edit / delete classes with color picker and shortcut binding |
 | YOLO Export | Export YOLO detection & segmentation format with `data.yaml` |
 | Undo/Redo | Full Undo/Redo support via Command pattern |
 | YOLO Integration | Load YOLO detection/segmentation models (`.pt`, `.engine`, `.onnx`) for auto-annotation |
-| Confidence Threshold | Slider for real-time low-score prediction filtering |
-| **IoU Threshold** | Slider to control NMS overlap for duplicate detection |
+| Confidence Threshold | Slider for real-time low-score prediction filtering (range 0.01–0.95) |
+| **IoU Threshold** | Slider to control NMS overlap for duplicate detection (range 0.05–0.90) |
 | Auto-Annotation | Single-image or batch auto-annotation |
 | Accept / Reject | `Enter` to accept / `Del` to reject predictions |
 | Model Path Persistence | Loaded model path auto-saved to project config |
@@ -92,7 +92,7 @@ python main.py
 1. **New Project**: Click "New" or press `Ctrl+N`
 2. **Import Images**: Click "Import" or press `Ctrl+I` (remembers the last directory)
 3. **Start Annotating**: Press `W` to enter BBox draw mode, drag to draw boxes
-4. **Polygon Annotation**: Press `P` to enter polygon mode, click to place vertices, double-click or click the first vertex to close. For **cracks & thin objects**: draw a centerline (2+ points), then double-click or Enter to auto-expand into a thickened polygon
+4. **Polygon Annotation**: Press `P` to enter polygon mode, click to place vertices, double-click or click the first vertex to close. For **cracks & thin objects**: draw a centerline (2+ points), then double-click or Enter to auto-expand into a thickened polygon (thickness adjustable in `canvas.py:POLYGON_THICKNESS`, defaults to 0.004 for ~4px half-width)
 5. **Switch Classes**: Select from the class dropdown below the annotation list
 6. **Export**: `File → Export YOLO` or `Ctrl+E`
 

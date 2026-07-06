@@ -4,7 +4,7 @@
 """
 
 import sys
-DEBUG = True
+DEBUG = False
 
 def _log(*args):
     if DEBUG:

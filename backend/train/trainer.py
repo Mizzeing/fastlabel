@@ -102,7 +102,8 @@ class YOLOTrainer:
         """将项目标注导出为 YOLO 训练格式，生成 training_data.yaml
 
         - 检测模型 → 5 列标签（class_id cx cy w h）
-        - 分割模型 → 6+ 列标签（class_id cx cy w h [多边形坐标...]），
+        - 分割模型 → N 列标签（class_id x1 y1 x2 y2 ...），
+          多边形坐标已归一化 (0~1)，不带 bbox 前缀。
           对纯 bbox 标注自动用框四角生成 4 点多边形。
         """
         # 判断模型类型（分割模型需要导出多边形点）
@@ -138,38 +139,46 @@ class YOLOTrainer:
                     cx = ann['x'] + ann['width'] / 2
                     cy = ann['y'] + ann['height'] / 2
                     if seg_mode and ann.get('type') == 'polygon' and ann.get('points'):
-                        # 分割格式：class_id cx cy w h x1_norm y1_norm x2_norm y2_norm ...
+                        # 分割格式：class_id x1_norm y1_norm x2_norm y2_norm ...
+                        # 注意：pts 已经是归一化坐标 (0~1)，无需再次归一化
+                        # 也不带 bbox 前缀；Ultralytics YOLOv8-seg 期望纯多边形坐标
                         try:
                             import json as _json
                             pts = _json.loads(ann['points'])
-                            # 注意：pts 是绝对像素坐标，需要归一化
-                            img_w = float(img.get('width', 1))
-                            img_h = float(img.get('height', 1))
                             seg_coords = ' '.join(
-                                f"{p[0] / img_w:.6f} {p[1] / img_h:.6f}" for p in pts
+                                f"{p[0]:.6f} {p[1]:.6f}" for p in pts
                             )
-                            f.write(f"{yolo_id} {cx:.6f} {cy:.6f} "
-                                    f"{ann['width']:.6f} {ann['height']:.6f} "
-                                    f"{seg_coords}\n")
+                            f.write(f"{yolo_id} {seg_coords}\n")
                         except Exception:
                             # 点数据异常时用框四角回退
-                            x1 = ann['x']
-                            y1 = ann['y']
-                            x2 = ann['x'] + ann['width']
-                            y2 = ann['y'] + ann['height']
-                            f.write(f"{yolo_id} {cx:.6f} {cy:.6f} "
-                                    f"{ann['width']:.6f} {ann['height']:.6f} "
-                                    f"{x1:.6f} {y1:.6f} {x2:.6f} {y1:.6f} "
+                            # 从数据库读取 bbox，对 polygon 类型可能为 0（旧版存储）
+                            x1 = ann.get('x', 0.0)
+                            y1 = ann.get('y', 0.0)
+                            w = ann.get('width', 0.0)
+                            h = ann.get('height', 0.0)
+                            # 如果 bbox 为零旧数据，从 points 反算
+                            if not (x1 or y1 or w or h):
+                                _pts = _json.loads(ann.get('points', '[]'))
+                                if _pts:
+                                    xs = [p[0] for p in _pts]
+                                    ys = [p[1] for p in _pts]
+                                    x1 = min(xs); y1 = min(ys)
+                                    x2 = max(xs); y2 = max(ys)
+                                else:
+                                    x2 = x1 + w; y2 = y1 + h
+                            else:
+                                x2 = x1 + w; y2 = y1 + h
+                            f.write(f"{yolo_id} {x1:.6f} {y1:.6f} {x2:.6f} {y1:.6f} "
                                     f"{x2:.6f} {y2:.6f} {x1:.6f} {y2:.6f}\n")
                     elif seg_mode:
                         # 纯 bbox 标注 + 分割模型 → 用框四角生成 4 点多边形
-                        x1 = ann['x']
-                        y1 = ann['y']
-                        x2 = ann['x'] + ann['width']
-                        y2 = ann['y'] + ann['height']
-                        f.write(f"{yolo_id} {cx:.6f} {cy:.6f} "
-                                f"{ann['width']:.6f} {ann['height']:.6f} "
-                                f"{x1:.6f} {y1:.6f} {x2:.6f} {y1:.6f} "
+                        # 注意：bbox 坐标已归一化
+                        x1 = ann.get('x', 0.0)
+                        y1 = ann.get('y', 0.0)
+                        w = ann.get('width', 0.0)
+                        h = ann.get('height', 0.0)
+                        x2 = x1 + w; y2 = y1 + h
+                        f.write(f"{yolo_id} {x1:.6f} {y1:.6f} {x2:.6f} {y1:.6f} "
                                 f"{x2:.6f} {y2:.6f} {x1:.6f} {y2:.6f}\n")
                     else:
                         # 5 列格式：yolo_index cx cy w h

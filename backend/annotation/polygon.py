@@ -19,12 +19,17 @@ class Polygon(Shape):
     points: List[Tuple[float, float]] = field(default_factory=list)
 
     def to_dict(self) -> dict:
+        x, y, w, h = self.get_bbox()
         return {
             'annotation_id': self.annotation_id,
             'class_id': self.class_id,
             'label': self.label,
             'type': 'polygon',
             'points': [[float(x), float(y)] for x, y in self.points],
+            'x': x,
+            'y': y,
+            'width': w,
+            'height': h,
             'score': self.score,
             'visible': self.visible,
             'locked': self.locked,

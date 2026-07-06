@@ -3,11 +3,15 @@
 统一管理图片、标签、类别的加载与同步。
 """
 
+import sys
 from pathlib import Path
 from typing import List, Optional, Dict, Callable
 from .image_loader import ImageLoader
 from .label_loader import LabelLoader
 from ..project.project import Project
+
+def _log(*args):
+    print("[DatasetManager]", *args, file=sys.stderr)
 from ..annotation.bbox import BBox
 from ..annotation.polygon import Polygon
 from ..annotation.shape import Shape
@@ -232,26 +236,38 @@ class DatasetManager:
             return []
 
         records = self._project.get_annotations(image_id)
+        _log(f"load_annotations(image_id={image_id}): {len(records)} 条 DB 记录")
         shapes = []
         for r in records:
             ann_type = r.get('type', 'bbox')
+            _log(f"  DB记录 type={ann_type}, class_id={r['class_id']}, "
+                 f"points={repr(r.get('points', '')[:60])}, "
+                 f"x={r['x']}, y={r['y']}, w={r['width']}, h={r['height']}, "
+                 f"label={r.get('label', '')}")
             if ann_type == 'polygon':
                 points_str = r.get('points', '')
                 if points_str:
                     import json
                     try:
                         pts = json.loads(points_str)
-                    except (json.JSONDecodeError, TypeError):
+                    except (json.JSONDecodeError, TypeError) as e:
+                        _log(f"  JSON解析失败: {e}")
                         pts = []
                 else:
                     pts = []
+                try:
+                    converted = [(float(p[0]), float(p[1])) for p in pts]
+                except (IndexError, TypeError) as e:
+                    _log(f"  点解析失败: {e}, pts={pts}")
+                    converted = []
                 shape = Polygon(
                     annotation_id=r['annotation_id'],
                     class_id=r['class_id'],
                     label=r.get('label', ''),
-                    points=[(float(p[0]), float(p[1])) for p in pts],
+                    points=converted,
                     score=r['score'],
                 )
+                _log(f"  -> Polygon: {len(converted)} 点, isinstance={isinstance(shape, Polygon)}")
             else:
                 shape = BBox(
                     annotation_id=r['annotation_id'],
@@ -264,17 +280,23 @@ class DatasetManager:
                     score=r['score'],
                 )
             shapes.append(shape)
+        _log(f"load_annotations 返回 {len(shapes)} 个 Shape 对象")
         return shapes
 
     def save_annotations(self, image_id: int, shapes: List[Shape]):
         """保存标注到数据库"""
         if self._project is None:
+            _log("save_annotations: project is None")
             return
 
         dicts = []
         for s in shapes:
             if isinstance(s, (BBox, Polygon)):
-                dicts.append(s.to_dict())
+                d = s.to_dict()
+                dicts.append(d)
+                _log(f"save_annotations: {type(s).__name__} -> type={d.get('type','?')}, "
+                     f"points={repr(d.get('points', ''))[:60] if 'points' in d else 'N/A'}")
+        _log(f"save_annotations: 保存 {len(dicts)} 个标注到 image_id={image_id}")
         self._project.save_all_annotations(image_id, dicts)
 
     def export_yolo(self, image_id: Optional[int] = None):

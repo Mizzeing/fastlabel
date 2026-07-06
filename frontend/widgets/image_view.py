@@ -90,6 +90,7 @@ class ImageView(QWidget):
 
         toolbar_layout.addWidget(self._select_btn)
         toolbar_layout.addWidget(self._draw_btn)
+        toolbar_layout.addWidget(self._polygon_btn)
         toolbar_layout.addWidget(self._pan_btn)
         toolbar_layout.addWidget(self._make_separator())
 

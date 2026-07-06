@@ -18,7 +18,7 @@
 | Project Management | Create / open / close / delete projects with auto-persistence |
 | Image Import | Supports JPG/PNG/BMP/TIFF/WEBP; auto-deduplication; records source paths |
 | BBox Annotation | Draw, select, move, resize bounding boxes |
-| **Polygon Annotation** | Click-to-draw polygons; vertex editing (insert/delete/drag) |
+| **Polygon Annotation** | Click-to-draw polygons; vertex editing (insert/delete/drag); **open-line auto-expansion**: draw a centerline, double-click or Enter to auto-generate a thickened polygon for cracks & thin objects; **distinct cursors** for vertex drag (cross) vs. shape drag (move) |
 | Multi-Select | Ctrl+Click for batch operations |
 | Batch Label Editing | Right-click to change labels on multiple selected annotations at once |
 | Class Management | Add / edit / delete classes with color picker and shortcut binding |
@@ -92,7 +92,7 @@ python main.py
 1. **New Project**: Click "New" or press `Ctrl+N`
 2. **Import Images**: Click "Import" or press `Ctrl+I` (remembers the last directory)
 3. **Start Annotating**: Press `W` to enter BBox draw mode, drag to draw boxes
-4. **Polygon Annotation**: Press `P` to enter polygon mode, click to place vertices, double-click or click the first vertex to close
+4. **Polygon Annotation**: Press `P` to enter polygon mode, click to place vertices, double-click or click the first vertex to close. For **cracks & thin objects**: draw a centerline (2+ points), then double-click or Enter to auto-expand into a thickened polygon
 5. **Switch Classes**: Select from the class dropdown below the annotation list
 6. **Export**: `File → Export YOLO` or `Ctrl+E`
 
@@ -353,6 +353,7 @@ Edit `DEFAULT_SHORTCUTS` in `backend/utils/misc.py`.
 |----------|--------|
 | `W` | Toggle BBox draw / select mode |
 | `P` | Toggle polygon draw / select mode |
+| `F` | **Auto-expand mode**: draw a centerline open line, then double-click/Enter to create a thickened polygon (ideal for cracks) |
 | `S` | Return to select mode |
 | `H` | Pan mode |
 | `A` / `D` | Previous / next image |
@@ -398,13 +399,28 @@ projects/<project-name>/
 
 ### YOLO Label Format
 
-Each image has a corresponding `.txt` file, supporting two formats:
+Each image has a corresponding `.txt` file in the `labels/` directory (generated on export via `File → Export YOLO` or `Ctrl+E`). Mixed detection and segmentation annotations coexist naturally in the same file.
 
-**Detection format**: `<class_id> <cx> <cy> <width> <height> [score]`
+**Detection format** (5 values after class_id):
+```
+<class_id> <cx> <cy> <width> <height>
+```
+Example: `0 0.5 0.5 0.3 0.2`
 
-**Segmentation format**: `<class_id> <x1> <y1> <x2> <y2> ... <xn> <yn> [score]`
+**Segmentation format** (even number of coordinate values after class_id):
+```
+<class_id> <x1> <y1> <x2> <y2> ... <xn> <yn>
+```
+Example: `1 0.1 0.1 0.2 0.15 0.3 0.1`
 
-All coordinates are normalized to [0, 1]. Format is auto-detected on import.
+**Mixed file example** — both formats in one `.txt`:
+```
+0 0.5 0.5 0.3 0.2              ← BBox (class 0)
+1 0.1 0.1 0.2 0.15 0.3 0.1     ← Polygon (class 1, 3 points)
+0 0.7 0.8 0.1 0.15             ← Another BBox
+```
+
+All coordinates are normalized to [0, 1]. The format is auto-detected on import — YOLOv8 training reads these files directly without any special configuration.
 
 ---
 

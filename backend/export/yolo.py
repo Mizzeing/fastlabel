@@ -62,12 +62,12 @@ class YOLOExporter:
                     else:
                         pts = []
                     coords = ' '.join(f"{p[0]:.6f} {p[1]:.6f}" for p in pts)
-                    f.write(f"{ann['class_id']} {coords} {ann['score']:.4f}\n")
+                    f.write(f"{ann['class_id']} {coords}\n")
                 else:
                     cx = ann['x'] + ann['width'] / 2
                     cy = ann['y'] + ann['height'] / 2
                     f.write(f"{ann['class_id']} {cx:.6f} {cy:.6f} "
-                            f"{ann['width']:.6f} {ann['height']:.6f} {ann['score']:.4f}\n")
+                            f"{ann['width']:.6f} {ann['height']:.6f}\n")
 
     def _export_data_yaml(self):
         """生成 YOLO data.yaml 配置文件"""
@@ -94,7 +94,6 @@ class YOLOExporter:
         for ann in annotations:
             cx = ann['x'] + ann['w'] / 2
             cy = ann['y'] + ann['h'] / 2
-            score = ann.get('score', 1.0)
             lines.append(f"{ann['class_id']} {cx:.6f} {cy:.6f} "
-                         f"{ann['w']:.6f} {ann['h']:.6f} {score:.4f}")
+                         f"{ann['w']:.6f} {ann['h']:.6f}")
         return '\n'.join(lines)

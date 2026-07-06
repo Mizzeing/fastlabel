@@ -3,11 +3,15 @@
 import sqlite3
 import json
 import time
+import sys
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from .config import ProjectConfig
+
+def _log(*args):
+    print('[Project]', *args, file=sys.stderr)
 
 
 class Project:
@@ -32,7 +36,8 @@ class Project:
         """初始化 SQLite 数据库"""
         self._conn = sqlite3.connect(str(self.db_path))
         self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        # 使用 TRUNCATE journal 模式（比 WAL 更可靠，避免跨会话数据丢失）
+        self._conn.execute("PRAGMA journal_mode=TRUNCATE")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._create_tables()
         self._migrate_if_needed()
@@ -168,14 +173,18 @@ class Project:
             cursor.execute("DELETE FROM classes WHERE id = ?", (cid,))
 
         # 插入或更新配置中的类别
+        # 注意: 不能用 INSERT OR REPLACE, 因为 REPLACE = DELETE+INSERT,
+        # 会触发 ON DELETE CASCADE 导致关联标注被删除
         for cls in deduped:
             cursor.execute("""
-                INSERT OR REPLACE INTO classes (id, name, color, shortcut_key, created_at)
-                VALUES (?, ?, ?, ?, COALESCE(
-                    (SELECT created_at FROM classes WHERE id = ?), ?
-                ))
+                INSERT INTO classes (id, name, color, shortcut_key, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    color = excluded.color,
+                    shortcut_key = excluded.shortcut_key
             """, (cls['id'], cls['name'], cls['color'],
-                  cls.get('shortcut', ''), cls['id'], now))
+                  cls.get('shortcut', ''), now))
 
         self._conn.commit()
 
@@ -250,7 +259,11 @@ class Project:
             WHERE a.image_id = ?
             ORDER BY a.id
         """, (image_id,))
-        return [dict(row) for row in cursor.fetchall()]
+        results = [dict(row) for row in cursor.fetchall()]
+        _log(f'get_annotations(db={self.db_path}, image_id={image_id}): {len(results)} 条记录')
+        for r in results:
+            _log(f'  id={r["id"]}, type={r["type"]}, points={repr(r.get("points","")[:60])}')
+        return results
 
     def save_annotation(self, image_id: int, annotation_id: str,
                         class_id: int, x: float, y: float,
@@ -274,7 +287,9 @@ class Project:
         self._conn.execute(
             "UPDATE images SET num_annotations = ?, updated_at = ? WHERE id = ?",
             (count, now, image_id))
+        _log(f'  COMMIT 前, num_annotations={count}')
         self._conn.commit()
+        _log(f'  COMMIT 完成')
 
     def delete_annotation(self, annotation_id: str):
         # 先获取 image_id
@@ -308,38 +323,52 @@ class Project:
 
     def save_all_annotations(self, image_id: int, annotations: List[Dict]):
         """批量保存标注（先清空再写入）"""
-        self._conn.execute(
-            "DELETE FROM annotations WHERE image_id = ?", (image_id,))
-        now = datetime.now().isoformat()
-        for ann in annotations:
-            ann_type = ann.get('type', 'bbox')
-            points_json = ''
-            if ann_type == 'polygon':
-                pts = ann.get('points', [])
-                import json
-                points_json = json.dumps(pts)
+        _log(f'save_all_annotations(db={self.db_path}, image_id={image_id}): {len(annotations)} 条')
+        try:
+            self._conn.execute(
+                "DELETE FROM annotations WHERE image_id = ?", (image_id,))
+            _log(f'  DELETE 完成')
+            now = datetime.now().isoformat()
+            for i, ann in enumerate(annotations):
+                ann_type = ann.get('type', 'bbox')
+                points_json = ''
+                if ann_type == 'polygon':
+                    pts = ann.get('points', [])
+                    import json
+                    points_json = json.dumps(pts)
 
-            x = ann.get('x', 0.0)
-            y = ann.get('y', 0.0)
-            w = ann.get('w', ann.get('width', 0.0))
-            h = ann.get('h', ann.get('height', 0.0))
+                x = ann.get('x', 0.0)
+                y = ann.get('y', 0.0)
+                w = ann.get('w', ann.get('width', 0.0))
+                h = ann.get('h', ann.get('height', 0.0))
 
-            self._conn.execute("""
-                INSERT INTO annotations
-                    (annotation_id, image_id, class_id, x, y, width, height,
-                     score, status, type, points, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                ann['annotation_id'], image_id, ann['class_id'],
-                x, y, w, h,
-                ann.get('score', 1.0), ann.get('status', 'manual'),
-                ann_type, points_json, now, now
-            ))
-        count = len(annotations)
-        self._conn.execute(
-            "UPDATE images SET num_annotations = ?, updated_at = ?, status = ? WHERE id = ?",
-            (count, now, 'annotated' if count > 0 else 'pending', image_id))
-        self._conn.commit()
+                _log(f'  INSERT[{i}]: id={ann["annotation_id"]}, type={ann_type}, '
+                     f'class_id={ann["class_id"]}, points_len={len(points_json)}')
+                self._conn.execute("""
+                    INSERT INTO annotations
+                        (annotation_id, image_id, class_id, x, y, width, height,
+                         score, status, type, points, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    ann['annotation_id'], image_id, ann['class_id'],
+                    x, y, w, h,
+                    ann.get('score', 1.0), ann.get('status', 'manual'),
+                    ann_type, points_json, now, now
+                ))
+            count = len(annotations)
+            self._conn.execute(
+                "UPDATE images SET num_annotations = ?, updated_at = ?, status = ? WHERE id = ?",
+                (count, now, 'annotated' if count > 0 else 'pending', image_id))
+            self._conn.commit()
+            # 立即验证数据是否写入
+            verify = self._conn.execute("SELECT COUNT(*) as c FROM annotations WHERE image_id = ?", (image_id,)).fetchone()
+            _log(f'  COMMIT 完成, {count} 条标注已保存 (验证: {verify["c"]} 条)')
+        except Exception as e:
+            self._conn.rollback()
+            _log(f'  保存失败, 事务回滚: {e}')
+            import traceback
+            traceback.print_exc()
+            raise
 
     # ── 导入/导出项目信息 ──
 

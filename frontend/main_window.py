@@ -3,6 +3,13 @@
 组装所有组件，管理应用状态，处理菜单和快捷键。
 """
 
+import sys
+DEBUG = True
+
+def _log(*args):
+    if DEBUG:
+        print("[MainWindow]", *args, file=sys.stderr)
+
 from PyQt5.QtWidgets import (
     QMainWindow, QFileDialog, QMessageBox, QApplication,
     QAction, QMenu, QToolBar, QStatusBar, QLabel,
@@ -574,11 +581,14 @@ class MainWindow(QMainWindow):
 
     def _load_image(self, image_id: int):
         """加载并显示图片"""
+        _log(f"_load_image({image_id}) 开始")
         if not self._project:
+            _log("_load_image: project is None")
             return
 
         img = self._project.get_image(image_id)
         if not img:
+            _log(f"_load_image: image_id={image_id} 未找到")
             return
 
         self._current_image_id = image_id
@@ -590,11 +600,20 @@ class MainWindow(QMainWindow):
 
         # 加载标注
         shapes = self._dataset_manager.load_annotations(image_id)
+        _log(f"_load_image: load_annotations 返回 {len(shapes)} 个对象")
+        for s in shapes:
+            _log(f"  type={type(s).__name__}, label={s.label}, "
+                 f"class_id={s.class_id}")
         self._annotation_manager.set_annotations(shapes)
+        _log(f"_load_image: set_annotations 完成, annotations={len(self._annotation_manager.annotations)}")
+
         self._annotation_manager.clear_predictions()
+        _log(f"_load_image: clear_predictions 完成, annotations={len(self._annotation_manager.annotations)}")
 
         # 更新 UI
         self._image_view.update_annotations(shapes, None)
+        _log(f"_load_image: update_annotations 完成")
+
         self._label_dock.set_annotations(shapes)
         self._property_dock.set_shape(None)
         self._model_dock.set_prediction_count(0)
@@ -626,6 +645,7 @@ class MainWindow(QMainWindow):
 
     def _on_annotation_added(self, shape: Shape):
         """添加标注"""
+        _log(f"_on_annotation_added: {type(shape).__name__}, label={shape.label}, class_id={shape.class_id}")
         if isinstance(shape, (BBox, Polygon)) and self._current_image_id is not None:
             # 设置当前类别
             class_id = self._label_dock.get_current_class_id()
@@ -734,7 +754,10 @@ class MainWindow(QMainWindow):
 
     def _save_current_annotations(self):
         """保存当前图片的标注到数据库"""
+        _log(f"_save_current_annotations: image_id={self._current_image_id}, annotations={len(self._annotation_manager.annotations)}")
         if self._current_image_id is not None and self._project:
+            for s in self._annotation_manager.annotations:
+                _log(f"  {type(s).__name__}: label={s.label}, class_id={s.class_id}")
             self._dataset_manager.save_annotations(
                 self._current_image_id,
                 self._annotation_manager.annotations)

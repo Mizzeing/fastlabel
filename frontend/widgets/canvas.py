@@ -789,9 +789,9 @@ class Canvas(QWidget):
             if isinstance(self._selected, Polygon):
                 vi = self._hit_polygon_vertex(pos, self._selected)
                 if vi >= 0:
-                    self.setCursor(QCursor(Qt.SizeAllCursor))
-                elif self._hit_polygon_edge(pos, self._selected) >= 0:
                     self.setCursor(QCursor(Qt.CrossCursor))
+                elif self._hit_polygon_edge(pos, self._selected) >= 0:
+                    self.setCursor(QCursor(Qt.PointingHandCursor))
                 elif self._selected.contains_point(
                         img_pos.x() / self._image_size[0] if self._image_size[0] > 0 else 0,
                         img_pos.y() / self._image_size[1] if self._image_size[1] > 0 else 0):
@@ -831,7 +831,7 @@ class Canvas(QWidget):
     def mouseDoubleClickEvent(self, event):
         """双击适应窗口或完成多边形"""
         if event.button() == Qt.LeftButton:
-            if self._mode == Mode.DRAW_POLYGON and len(self._poly_points) >= 3:
+            if self._mode == Mode.DRAW_POLYGON and len(self._poly_points) >= 2:
                 self._polygon_finish()
                 return
             self._fit_to_widget()
@@ -873,7 +873,9 @@ class Canvas(QWidget):
                     elif self._on_request_delete:
                         self._on_request_delete(self._selected)
             elif key == Qt.Key_Return or key == Qt.Key_Enter:
-                if self._selected and self._selected in self._predictions:
+                if self._poly_points:
+                    self._polygon_finish()
+                elif self._selected and self._selected in self._predictions:
                     self.annotation_accept_requested.emit(self._selected)
             elif key == Qt.Key_Escape:
                 if self._drawing:
@@ -1171,7 +1173,7 @@ class Canvas(QWidget):
             first = self._poly_points[0]
             dist = math.hypot(pos.x() - first.x(), pos.y() - first.y())
             if dist < self.CLOSE_DISTANCE:
-                self._polygon_finish()
+                self._polygon_finish(closed_by_proximity=True)
                 return
 
         self._poly_points.append(QPointF(pos))
@@ -1190,18 +1192,24 @@ class Canvas(QWidget):
             self._poly_points.pop()
             self.update()
 
-    def _polygon_finish(self):
-        """完成多边形绘制"""
-        if len(self._poly_points) < 3:
+    def _polygon_finish(self, closed_by_proximity=False):
+        """完成多边形绘制（支持闭合和开放线膨胀）
+
+        Args:
+            closed_by_proximity: True=用户点击起点闭合, False=双击/Enter完成(开放线)
+        """
+        if len(self._poly_points) < 2:
             # 点数不够，忽略
             self._poly_points.clear()
             self._poly_hover_pos = None
             self.update()
             return
 
+        pts = self._poly_points
+
         # 将画布坐标转为归一化坐标
         pts_normalized = []
-        for pt in self._poly_points:
+        for pt in pts:
             img_pt = self.canvas_to_image(pt.x(), pt.y())
             norm = self.image_to_normalized(img_pt.x(), img_pt.y())
             # 裁剪到 [0, 1]
@@ -1209,9 +1217,15 @@ class Canvas(QWidget):
             ny = max(0, min(1, norm.y()))
             pts_normalized.append((nx, ny))
 
-        # 忽略面积太小的多边形
-        if len(pts_normalized) >= 3:
-            # 粗略面积检测
+        if not closed_by_proximity and len(pts_normalized) >= 2:
+            # 开放线（双击/Enter）→ 左右膨胀为闭合多边形
+            pts_expanded = self._create_thickened_polygon(pts_normalized)
+            if pts_expanded and len(pts_expanded) >= 3:
+                polygon = Polygon(points=pts_expanded)
+                self.annotation_added.emit(polygon)
+                self.status_message.emit("已自动膨胀为裂纹多边形")
+        elif len(pts_normalized) >= 3:
+            # 正常闭合多边形，做面积检测
             xs = [p[0] for p in pts_normalized]
             ys = [p[1] for p in pts_normalized]
             area = (max(xs) - min(xs)) * (max(ys) - min(ys))
@@ -1220,13 +1234,77 @@ class Canvas(QWidget):
                 self._poly_hover_pos = None
                 self.update()
                 return
-
-        polygon = Polygon(points=pts_normalized)
-        self.annotation_added.emit(polygon)
+            polygon = Polygon(points=pts_normalized)
+            self.annotation_added.emit(polygon)
 
         self._poly_points.clear()
         self._poly_hover_pos = None
         self.update()
+
+    # ── 开放线膨胀 ──
+
+    POLYGON_THICKNESS = 0.012  # 默认膨胀厚度（归一化坐标）
+
+    def _create_thickened_polygon(self, pts_norm):
+        """将开放线左右膨胀为闭合多边形（用于裂纹标注）
+
+        沿中心线每个点的垂直方向，向两侧偏移生成左右边，形成带状多边形。
+        """
+        if len(pts_norm) < 2:
+            return None
+        w, h = self._image_size
+        if w == 0 or h == 0:
+            return None
+
+        # 转换为图像坐标（像素），膨胀厚度用图像尺寸计算
+        img_pts = [(x * w, y * h) for x, y in pts_norm]
+        half = self.POLYGON_THICKNESS * min(w, h) / 2.0
+        if half < 1:
+            half = 2.0  # 最小 2 像素
+
+        left_side = []
+        right_side = []
+
+        for i, (px, py) in enumerate(img_pts):
+            # 计算方向向量
+            if i == 0:
+                dx = img_pts[1][0] - px
+                dy = img_pts[1][1] - py
+            elif i == len(img_pts) - 1:
+                dx = px - img_pts[i - 1][0]
+                dy = py - img_pts[i - 1][1]
+            else:
+                # 内部点：用前后两段的方向均值
+                dx = img_pts[i + 1][0] - img_pts[i - 1][0]
+                dy = img_pts[i + 1][1] - img_pts[i - 1][1]
+
+            length = math.hypot(dx, dy)
+            if length < 1:
+                left_side.append((px, py))
+                right_side.append((px, py))
+                continue
+
+            dx /= length
+            dy /= length
+
+            # 垂直向量（顺时针旋转 90°）
+            perp_x = -dy
+            perp_y = dx
+
+            left_side.append((px + perp_x * half, py + perp_y * half))
+            right_side.append((px - perp_x * half, py - perp_y * half))
+
+        # 构建闭合多边形：沿左侧 → 从右侧返回（反转）
+        poly_img = left_side + right_side[::-1]
+
+        # 转回归一化坐标，裁剪到 [0, 1]
+        result = []
+        for x, y in poly_img:
+            result.append((
+                max(0, min(1, x / w)),
+                max(0, min(1, y / h)),
+            ))
+        return result
 
     # ── 多边形编辑操作 ──
 

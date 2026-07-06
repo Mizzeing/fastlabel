@@ -129,12 +129,6 @@ class ClassMappingDialog(QDialog):
         scroll.setWidget(grid_widget)
         layout.addWidget(scroll, 1)
 
-        # 分隔线
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.HLine)
-        sep2.setStyleSheet("color: #3d3d3d;")
-        layout.addWidget(sep2)
-
         # 底部按钮
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()

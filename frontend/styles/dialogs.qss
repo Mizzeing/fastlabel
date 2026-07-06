@@ -28,6 +28,21 @@ MainWindow QDialog QLabel {
     color: #cccccc;
 }
 
+/* ---- Dialog scroll areas ---- */
+/* QScrollArea 的 viewport 需要显式透明，否则默认白色背景 */
+QDialog QScrollArea {
+    border: none;
+    background: transparent;
+}
+
+QDialog QScrollArea > QWidget > QWidget {
+    background: transparent;
+}
+
+QDialog QFrame {
+    background: transparent;
+}
+
 /* ---- QFileDialog ---- */
 /* QFileDialog 调用时传 parent=None（见各调用处），
    不继承 MainWindow 的暗色样式表，使用系统原生对话框
